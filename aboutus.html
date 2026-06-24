@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>elyxUI // Next-Gen Intelligent School Systems</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #030303;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        
+        .glass-btn {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(16px) saturate(180%);
+            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        .glass-panel {
+            background: rgba(15, 10, 10, 0.3);
+            backdrop-filter: blur(24px) saturate(160%);
+            -webkit-backdrop-filter: blur(24px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6);
+        }
+        
+        .glass-panel-heavy {
+            background: rgba(8, 5, 5, 0.85);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .glow-hover {
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .glow-hover:hover {
+            box-shadow: 0 0 35px rgba(255, 255, 255, 0.18);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* iOS Dynamic Island */
+        .dynamic-island {
+            width: 320px;
+            height: 35px;
+            background: #000000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .dynamic-island.scrolled {
+            width: 92%;
+            max-width: 800px;
+            height: 60px;
+            border-radius: 20px;
+            background: rgba(10, 5, 5, 0.8);
+            backdrop-filter: blur(20px);
+        }
+
+        /* Mobile — shrink island on very small screens */
+        @media (max-width: 360px) {
+            .dynamic-island {
+                width: calc(100vw - 32px);
+            }
+        }
+
+        .perspective-container {
+            perspective: 1200px;
+        }
+        .object-3d {
+            transform-style: preserve-3d;
+            transition: transform 0.1s ease-out;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #030303; }
+        ::-webkit-scrollbar-thumb { background: rgba(220, 38, 38, 0.2); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(220, 38, 38, 0.5); }
+
+        /* ── Mobile Navigation Drawer ── */
+        #mobile-nav-overlay {
+            pointer-events: none;
+        }
+        #mobile-nav-overlay.menu-open {
+            pointer-events: all;
+        }
+        #mobile-nav-backdrop {
+            opacity: 0;
+            transition: opacity 0.45s ease;
+        }
+        #mobile-nav-backdrop.menu-open {
+            opacity: 1;
+        }
+        #mobile-nav-drawer {
+            background: rgba(8, 4, 4, 0.98);
+            backdrop-filter: blur(40px) saturate(160%);
+            -webkit-backdrop-filter: blur(40px) saturate(160%);
+            border-left: 1px solid rgba(255, 255, 255, 0.07);
+            transform: translateX(100%);
+            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        #mobile-nav-drawer.menu-open {
+            transform: translateX(0);
+        }
+
+        /* Hamburger icon lines */
+        .ham-line {
+            display: block;
+            height: 1.5px;
+            background: white;
+            border-radius: 999px;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-red-600 selection:text-white">
+
+    <!-- Ambient Plasma Fields -->
+    <div class="fixed top-[-15%] left-[-10%] w-[60vw] h-[60vw] bg-red-950/20 rounded-full blur-[180px] pointer-events-none z-0"></div>
+    <div class="fixed bottom-[-10%] right-[-15%] w-[50vw] h-[50vw] bg-rose-950/15 rounded-full blur-[160px] pointer-events-none z-0"></div>
+
+    <!-- ══════════════════════════════════════════════════
+         MOBILE NAVIGATION OVERLAY
+    ══════════════════════════════════════════════════ -->
+    <div id="mobile-nav-overlay" class="fixed inset-0 z-[200]">
+        <!-- Backdrop — click to close -->
+        <div id="mobile-nav-backdrop" onclick="closeMobileMenu()"
+             class="absolute inset-0 bg-black/85 backdrop-blur-md"></div>
+
+        <!-- Drawer Panel -->
+        <div id="mobile-nav-drawer"
+             class="absolute top-0 right-0 h-full w-72 max-w-[85vw] flex flex-col shadow-2xl">
+
+            <!-- Drawer Header -->
+            <div class="flex items-center justify-between px-6 py-5 border-b border-white/5">
+                <div>
+                    <p class="text-[9px] font-mono text-red-500 uppercase tracking-widest">// NAV_MESH</p>
+                    <p class="text-white font-black text-lg tracking-tight leading-none mt-0.5">elyxUI</p>
+                </div>
+                <button onclick="closeMobileMenu()"
+                        class="w-8 h-8 flex items-center justify-center rounded-xl
+                               bg-white/5 hover:bg-white/10 border border-white/10
+                               text-slate-300 hover:text-white transition-all">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Nav Links -->
+            <nav class="flex-1 px-4 py-5 space-y-1 overflow-y-auto">
+                <p class="text-[9px] font-mono text-slate-600 uppercase tracking-widest px-3 mb-3">Navigation</p>
+                <a href="#features" onclick="closeMobileMenu()"
+                   class="flex items-center justify-between px-4 py-3.5 rounded-xl text-slate-300
+                          hover:text-white hover:bg-white/5 border border-transparent
+                          hover:border-white/5 transition-all text-sm font-medium">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-layer-group text-red-500 text-xs w-4 text-center"></i>
+                        <span>Ecosystem</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+                </a>
+                <a href="#dashboards" onclick="closeMobileMenu()"
+                   class="flex items-center justify-between px-4 py-3.5 rounded-xl text-slate-300
+                          hover:text-white hover:bg-white/5 border border-transparent
+                          hover:border-white/5 transition-all text-sm font-medium">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-gauge-high text-red-500 text-xs w-4 text-center"></i>
+                        <span>Dashboards</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+                </a>
+                <a href="#infrastructure" onclick="closeMobileMenu()"
+                   class="flex items-center justify-between px-4 py-3.5 rounded-xl text-slate-300
+                          hover:text-white hover:bg-white/5 border border-transparent
+                          hover:border-white/5 transition-all text-sm font-medium">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-shield-halved text-red-500 text-xs w-4 text-center"></i>
+                        <span>Isolation</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+                </a>
+                <a href="#pricing" onclick="closeMobileMenu()"
+                   class="flex items-center justify-between px-4 py-3.5 rounded-xl text-slate-300
+                          hover:text-white hover:bg-white/5 border border-transparent
+                          hover:border-white/5 transition-all text-sm font-medium">
+                    <div class="flex items-center space-x-3">
+                        <i class="fa-solid fa-coins text-red-500 text-xs w-4 text-center"></i>
+                        <span>Pricing</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+                </a>
+
+                <div class="pt-4 mt-2 border-t border-white/5">
+                    <p class="text-[9px] font-mono text-slate-600 uppercase tracking-widest px-3 mb-3">More</p>
+                    <a href="#team" onclick="closeMobileMenu()"
+                       class="flex items-center justify-between px-4 py-3.5 rounded-xl text-slate-300
+                              hover:text-white hover:bg-white/5 border border-transparent
+                              hover:border-white/5 transition-all text-sm font-medium">
+                        <div class="flex items-center space-x-3">
+                            <i class="fa-solid fa-users text-red-500 text-xs w-4 text-center"></i>
+                            <span>The Guild</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+                    </a>
+                    <a href="#contact" onclick="closeMobileMenu()"
+                       class="flex items-center justify-between px-4 py-3.5 rounded-xl text-slate-300
+                              hover:text-white hover:bg-white/5 border border-transparent
+                              hover:border-white/5 transition-all text-sm font-medium">
+                        <div class="flex items-center space-x-3">
+                            <i class="fa-solid fa-envelope text-red-500 text-xs w-4 text-center"></i>
+                            <span>Contact</span>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-slate-600 text-[10px]"></i>
+                    </a>
+                </div>
+            </nav>
+
+            <!-- Drawer Footer CTA -->
+            <div class="px-4 pb-6 pt-4 border-t border-white/5 space-y-3">
+                <div class="flex items-center justify-center py-2 px-3 rounded-xl bg-red-950/40 border border-red-900/30">
+                    <span class="inline-block h-1.5 w-1.5 rounded-full bg-red-500 mr-2 animate-pulse"></span>
+                    <span class="text-[9px] font-mono text-red-400 uppercase tracking-widest">Secure Node Active</span>
+                </div>
+                <a href="#contact" onclick="closeMobileMenu()"
+                   class="glass-btn glow-hover block w-full text-center py-3.5 rounded-xl
+                          text-xs font-bold uppercase tracking-widest text-white
+                          border border-white/10 bg-white/5">
+                    Book Project
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════
+         DYNAMIC ISLAND HEADER
+    ══════════════════════════════════════════════════ -->
+    <header class="fixed top-4 left-0 w-full z-50 flex justify-center items-center px-4 pointer-events-none">
+        <div id="island" class="dynamic-island pointer-events-auto flex items-center justify-between px-4 overflow-hidden shadow-2xl">
+
+            <!-- Compact State -->
+            <div id="island-compact" class="w-full flex items-center justify-between text-white text-xs font-bold tracking-wider">
+                <div class="flex items-center space-x-2">
+                    <span class="inline-block h-2 w-2 rounded-full bg-red-600 animate-ping flex-shrink-0"></span>
+                    <span>elyxUI</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <!-- Status text: hidden on mobile, visible on sm+ -->
+                    <span class="hidden sm:block text-[10px] uppercase font-mono tracking-widest text-red-500">CLAUDE 4.8 // ONLINE</span>
+                    <!-- Hamburger: visible only below md -->
+                    <button onclick="openMobileMenu()"
+                            class="md:hidden flex flex-col gap-[4px] justify-center items-center w-7 h-7 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+                            aria-label="Open navigation menu">
+                        <span class="ham-line w-[18px]"></span>
+                        <span class="ham-line w-[14px] opacity-70"></span>
+                        <span class="ham-line w-[18px]"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Expanded State (on scroll) -->
+            <div id="island-expanded" class="hidden w-full items-center justify-between opacity-0 transition-opacity duration-300">
+                <div class="flex items-center space-x-3">
+                    <span class="text-lg font-black tracking-tighter text-white">elyxUI</span>
+                    <span class="h-4 w-[1px] bg-white/20 hidden md:block"></span>
+                    <div class="hidden md:flex items-center space-x-6 text-xs text-slate-400 font-medium">
+                        <a href="#features" class="hover:text-white transition-colors">Ecosystem</a>
+                        <a href="#dashboards" class="hover:text-white transition-colors">Dashboards</a>
+                        <a href="#infrastructure" class="hover:text-white transition-colors">Isolation</a>
+                        <a href="#pricing" class="hover:text-white transition-colors">Pricing</a>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="hidden sm:inline-block px-2.5 py-1 text-[9px] font-mono rounded bg-red-950 text-red-400 border border-red-900/40">Secure Node</span>
+                    <a href="#contact" class="hidden md:block glass-btn glow-hover px-4 py-2 rounded-xl text-xs font-semibold text-white">Book Project</a>
+                    <!-- Hamburger in expanded state: below md -->
+                    <button onclick="openMobileMenu()"
+                            class="md:hidden flex flex-col gap-[4px] justify-center items-center w-7 h-7 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+                            aria-label="Open navigation menu">
+                        <span class="ham-line w-[18px]"></span>
+                        <span class="ham-line w-[14px] opacity-70"></span>
+                        <span class="ham-line w-[18px]"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══════════════════════════════════════════════════
+         HERO
+    ══════════════════════════════════════════════════ -->
+    <section class="relative min-h-screen pt-32 pb-20 flex items-center justify-center px-6 lg:px-16 z-10 perspective-container">
+        <div class="max-w-7xl w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            
+            <div class="lg:col-span-7 text-left">
+                <div class="inline-flex items-center space-x-2 px-4 py-2 rounded-full glass-btn mb-8">
+                    <span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                    <span class="text-[10px] uppercase tracking-widest text-red-400 font-semibold">Decoupled Systems Architecture</span>
+                </div>
+                <h1 class="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter mb-8 leading-none text-white">
+                    Students <span class="bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-rose-700">Love</span> Beautiful Interfaces.
+                </h1>
+                <p class="text-base md:text-lg text-slate-400 max-w-2xl mb-12 font-light leading-relaxed">
+                    We engineer premium educational automation. Transform fragmented institutional workflows into centralized, high-performance environments driven by Claude Opus 4.8 dedicated compute instances.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <a href="#pricing" class="glass-btn glow-hover text-center px-8 py-4 bg-white text-white font-bold rounded-xl text-xs uppercase tracking-widest">Deploy Architecture</a>
+                    <a href="#dashboards" class="glass-btn glow-hover text-center px-8 py-4 text-white font-bold rounded-xl text-xs uppercase tracking-widest">Explore System Previews</a>
+                </div>
+            </div>
+
+            <!-- 3D Interactive Card -->
+            <div class="lg:col-span-5 hidden lg:flex justify-center items-center">
+                <div id="interactive-3d-card" class="object-3d w-80 h-96 glass-panel rounded-3xl p-6 border-red-500/20 relative shadow-[0_0_50px_rgba(220,38,38,0.05)]">
+                    <div class="absolute inset-0 bg-gradient-to-b from-red-600/10 to-transparent rounded-3xl pointer-events-none"></div>
+                    <div class="flex flex-col h-full justify-between relative z-10">
+                        <div class="flex justify-between items-center">
+                            <i class="fa-solid fa-cubes text-red-500 text-3xl animate-bounce"></i>
+                            <span class="text-[10px] font-mono text-slate-500">ENGINE_NODE // 3D</span>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="h-2 w-1/2 bg-red-600/30 rounded"></div>
+                            <div class="h-2 w-3/4 bg-white/10 rounded"></div>
+                            <div class="h-2 w-5/6 bg-white/5 rounded"></div>
+                        </div>
+                        <div class="p-4 bg-black/40 rounded-xl border border-white/5 backdrop-blur-sm">
+                            <p class="text-xs font-mono text-emerald-400 mb-1"><i class="fa-solid fa-bolt mr-1"></i> CLAUDE RESPONSE</p>
+                            <p class="text-[11px] text-slate-400 leading-normal">Parsing attendance telemetry structures directly across partition clusters in 14ms.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════
+         CORE FEATURES
+    ══════════════════════════════════════════════════ -->
+    <section id="features" class="py-24 px-6 lg:px-16 relative z-10 border-t border-white/5 bg-black/40">
+        <div class="max-w-7xl mx-auto">
+            <div class="mb-16">
+                <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-2">Ecosystem Blueprints</p>
+                <h2 class="text-3xl md:text-5xl font-black tracking-tight text-white">The Core Institutional Screen</h2>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="glass-panel glow-hover p-8 rounded-2xl group">
+                    <div class="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 mb-6 group-hover:bg-red-600 group-hover:text-white transition-all">
+                        <i class="fa-solid fa-receipt text-lg"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-3 text-white">Online Fees Portal</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Integrated split-settlement gateway processing tuition, sports levies, and dynamic service ledger updates automatically.</p>
+                </div>
+                <div class="glass-panel glow-hover p-8 rounded-2xl group">
+                    <div class="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 mb-6 group-hover:bg-red-600 group-hover:text-white transition-all">
+                        <i class="fa-solid fa-file-signature text-lg"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-3 text-white">Admission Core</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Dynamic onboarding pipelines customized individually for faculty positions and high-value student entries.</p>
+                </div>
+                <div class="glass-panel glow-hover p-8 rounded-2xl group">
+                    <div class="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 mb-6 group-hover:bg-red-600 group-hover:text-white transition-all">
+                        <i class="fa-solid fa-box-open text-lg"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-3 text-white">Lost Item Recovery</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Algorithmic tracking interface enabling instant logging, spatial tags, and status notification cascades across campus.</p>
+                </div>
+                <div class="glass-panel glow-hover p-8 rounded-2xl group">
+                    <div class="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 mb-6 group-hover:bg-red-600 group-hover:text-white transition-all">
+                        <i class="fa-solid fa-book-bookmark text-lg"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-3 text-white">Library Commerce Node</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Unified catalog interface providing student pathways for immediate book procurement, rentals, and fine mitigation.</p>
+                </div>
+                <div class="glass-panel glow-hover p-8 rounded-2xl group">
+                    <div class="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 mb-6 group-hover:bg-red-600 group-hover:text-white transition-all">
+                        <i class="fa-solid fa-radio text-lg"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-3 text-white">Daily Student News</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Real-time content feed distributing schedule vectors, activity notifications, and system structural announcements.</p>
+                </div>
+                <div class="glass-panel glow-hover p-8 rounded-2xl group">
+                    <div class="h-11 w-11 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 mb-6 group-hover:bg-red-600 group-hover:text-white transition-all">
+                        <i class="fa-solid fa-address-book text-lg"></i>
+                    </div>
+                    <h3 class="text-lg font-bold mb-3 text-white">Detailed Contact Matrix</h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">Cryptographically secured endpoint access routing parent correspondence directly to authorized coordinators.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════
+         CLAUDE DISPATCH CLUSTER
+    ══════════════════════════════════════════════════ -->
+    <section class="py-24 px-6 lg:px-16 relative z-10 bg-[#060404]">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-2">Automated Event Descriptors</p>
+                <h2 class="text-4xl md:text-5xl font-black tracking-tight mb-6 text-white">Claude Opus 4.8 Dispatch Cluster</h2>
+                <p class="text-slate-400 mb-8 font-light text-sm leading-relaxed">
+                    Our platform completely replaces manual communication with automated intelligence pipelines. Every system event runs through a dedicated Claude Opus 4.8 framework to format context-aware, personalized notifications dispatched instantly across Email, Direct SMS gateways, and specialized responsive WhatsApp Bots.
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-300">
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-bell text-red-500"></i> <span>Fees Outstanding &amp; Deadlines</span></div>
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-book-open-reader text-red-500"></i> <span>Homework Assignments</span></div>
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-marker text-red-500"></i> <span>Instant Test Marks Updates</span></div>
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-graduation-cap text-red-500"></i> <span>Final Exam Performance</span></div>
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-spinner text-red-500"></i> <span>Real-time Assignment Status</span></div>
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-user-clock text-red-500"></i> <span>Attendance Tracking</span></div>
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-calendar-check text-red-500"></i> <span>Upcoming Test Reminders</span></div>
+                    <div class="flex items-center space-x-2"><i class="fa-solid fa-shield-cat text-red-500"></i> <span>Student Behavioral Patterns</span></div>
+                </div>
+            </div>
+            
+            <div class="glass-panel p-6 rounded-2xl border-red-900/30 relative">
+                <span class="absolute top-4 right-4 text-[9px] font-mono text-red-400 bg-red-950/50 px-2 py-0.5 rounded">Active Broadcast</span>
+                <div class="space-y-4 font-mono text-xs text-slate-400">
+                    <div class="p-4 bg-black/40 rounded-xl border border-white/5">
+                        <p class="text-red-500 font-bold mb-1 text-[11px]">&gt;&gt; WHATSAPP_CORE_BOT</p>
+                        <p class="text-slate-300">"Attention Parent: Claude Opus has detected an unexcused divergence in Block 2 Attendance. Behavioral log updated."</p>
+                    </div>
+                    <div class="p-4 bg-black/40 rounded-xl border border-white/5 opacity-50">
+                        <p class="text-slate-500 font-bold mb-1 text-[11px]">&gt;&gt; SMS_GATEWAY_OUT</p>
+                        <p class="text-slate-300">"Fees Notice: Term 3 balance clearance outstanding. Secure portal inside."</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════
+         DASHBOARDS (Horizontal Scroll)
+    ══════════════════════════════════════════════════ -->
+    <section id="dashboards" class="py-24 bg-[#030303] relative overflow-hidden horizontal-scroll-section">
+        <div class="px-6 lg:px-16 mb-12 flex justify-between items-end">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-2">Interface Previews</p>
+                <h2 class="text-3xl md:text-5xl font-black tracking-tight text-white">Dual Execution Spaces</h2>
+            </div>
+            <span class="text-xs font-mono text-slate-500 hidden md:block">Scroll to Advance Horizontal Panel Matrix →</span>
+        </div>
+        
+        <div class="horizontal-container-wrapper overflow-hidden flex w-full">
+            <div class="horizontal-track flex space-x-8 px-6 lg:px-16 will-change-transform py-4">
+                
+                <!-- Student Dashboard -->
+                <div class="w-[90vw] md:w-[850px] flex-shrink-0 glass-panel-heavy rounded-3xl p-8 relative border border-white/5">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-white font-extrabold text-lg tracking-tight">elyxUI</span>
+                            <span class="text-xs text-slate-500 font-light">/ Student Dashboard</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-xs text-slate-400">
+                            <span class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                            <span class="font-mono text-[11px]">Live Sync</span>
+                        </div>
+                    </div>
+
+                    <h3 class="text-3xl font-bold tracking-tight text-white mb-8">Academic Overview</h3>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-7 space-y-6">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                    <p class="text-2xl font-bold text-white tracking-tight">92%</p>
+                                    <p class="text-[10px] uppercase text-slate-500 font-semibold mt-1">Attendance Monitor</p>
+                                </div>
+                                <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                    <p class="text-2xl font-bold text-white tracking-tight">87</p>
+                                    <p class="text-[10px] uppercase text-slate-500 font-semibold mt-1">Avg Test Score</p>
+                                </div>
+                                <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                    <p class="text-2xl font-bold text-emerald-400 tracking-tight">✓ Paid</p>
+                                    <p class="text-[10px] uppercase text-slate-500 font-semibold mt-1">Fees Status Ledger</p>
+                                </div>
+                                <div class="p-4 bg-white/5 rounded-xl border border-white/5">
+                                    <p class="text-2xl font-bold text-red-500 tracking-tight">On Route</p>
+                                    <p class="text-[10px] uppercase text-slate-500 font-semibold mt-1">Transport Bus Status</p>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-3 bg-black/30 p-4 rounded-xl border border-white/5">
+                                <p class="text-[11px] uppercase tracking-wider font-mono text-slate-400 mb-2">Subject Performance Analytics</p>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Mathematics</span><span class="text-white font-mono">91%</span></div>
+                                    <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden"><div class="bg-red-500 h-full w-[91%]"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Science Modules</span><span class="text-white font-mono">84%</span></div>
+                                    <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden"><div class="bg-red-600 h-full w-[84%]"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>English Literature</span><span class="text-white font-mono">78%</span></div>
+                                    <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden"><div class="bg-rose-700 h-full w-[78%]"></div></div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Social Sciences</span><span class="text-white font-mono">88%</span></div>
+                                    <div class="w-full bg-white/10 h-1.5 rounded-full overflow-hidden"><div class="bg-red-500 h-full w-[88%]"></div></div>
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-2 text-[10px] font-mono text-slate-400">
+                                <span class="bg-white/5 px-2 py-1 rounded">Canteen Pocket Balance</span>
+                                <span class="bg-white/5 px-2 py-1 rounded">Library Access Status</span>
+                                <span class="bg-white/5 px-2 py-1 rounded">Daily Classwork Sync</span>
+                                <span class="bg-white/5 px-2 py-1 rounded">Faculty Contact Router</span>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-5 space-y-3">
+                            <p class="text-[11px] uppercase tracking-wider font-mono text-slate-400">Recent Activity Stream</p>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                                <div class="flex items-center space-x-3 text-slate-200">
+                                    <i class="fa-solid fa-book text-red-500"></i>
+                                    <span>Maths Homework Assigned</span>
+                                </div>
+                                <span class="text-[10px] text-slate-500 bg-white/5 px-2 py-0.5 rounded">Today</span>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                                <div class="flex items-center space-x-3 text-slate-200">
+                                    <i class="fa-solid fa-square-poll-vertical text-red-500"></i>
+                                    <span>Science Test Result Posted</span>
+                                </div>
+                                <span class="text-[10px] text-slate-300 font-mono">84/100</span>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                                <div class="flex items-center space-x-3 text-slate-200">
+                                    <i class="fa-solid fa-wallet text-emerald-400"></i>
+                                    <span>Fees Receipt Tokenized</span>
+                                </div>
+                                <span class="text-[10px] text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded">Paid</span>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                                <div class="flex items-center space-x-3 text-slate-200">
+                                    <i class="fa-solid fa-file-invoice text-red-500"></i>
+                                    <span>Term 1 Consolidated Marks</span>
+                                </div>
+                                <span class="text-[10px] text-slate-500 bg-white/5 px-2 py-0.5 rounded">Uploaded</span>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                                <div class="flex items-center space-x-3 text-slate-200">
+                                    <i class="fa-solid fa-arrow-trend-up text-emerald-400"></i>
+                                    <span>Behavioral Improvement</span>
+                                </div>
+                                <span class="text-[10px] text-slate-400 font-mono">+12%</span>
+                            </div>
+                            <div class="p-3 bg-white/5 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                                <div class="flex items-center space-x-3 text-slate-200">
+                                    <i class="fa-solid fa-clock text-red-400"></i>
+                                    <span>3 Assignments Impending</span>
+                                </div>
+                                <span class="text-[10px] text-red-400 bg-red-950 px-2 py-0.5 rounded">Due Fri</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Teacher Dashboard -->
+                <div class="w-[90vw] md:w-[850px] flex-shrink-0 glass-panel-heavy rounded-3xl p-8 relative border border-white/5">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-white font-extrabold text-lg tracking-tight">elyxUI</span>
+                            <span class="text-xs text-slate-500 font-light">/ Faculty Workspace</span>
+                        </div>
+                        <div class="flex items-center space-x-2 text-xs text-slate-400">
+                            <span class="inline-block h-1.5 w-1.5 rounded-full bg-red-500"></span>
+                            <span class="font-mono text-[11px]">Root Access</span>
+                        </div>
+                    </div>
+
+                    <h3 class="text-3xl font-bold tracking-tight text-white mb-8">Orchestration Control</h3>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-7 space-y-4">
+                            <p class="text-[11px] uppercase tracking-wider font-mono text-slate-400">Administrative Write Permissions</p>
+                            <div class="grid grid-cols-2 gap-3 text-xs text-slate-200">
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-file-pen text-red-500 mr-2"></i> Issue Assignments</div>
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-house-laptop text-red-500 mr-2"></i> Allocate Homework</div>
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-scale-balanced text-red-500 mr-2"></i> Manage Fees Status</div>
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-clipboard-check text-red-500 mr-2"></i> Library Access Logs</div>
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-calendar-plus text-red-500 mr-2"></i> Schedule Test Dates</div>
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-marker text-red-500 mr-2"></i> Set Test Marks</div>
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-award text-red-500 mr-2"></i> Final Exam Scoring</div>
+                                <div class="p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors cursor-pointer"><i class="fa-solid fa-user-check text-red-500 mr-2"></i> Set Daily Attendance</div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-5 space-y-4">
+                            <p class="text-[11px] uppercase tracking-wider font-mono text-slate-400">Behavioral Alert Channels</p>
+                            <div class="p-4 bg-red-950/20 border border-red-900/40 rounded-xl space-y-3">
+                                <div class="flex items-center space-x-2 text-xs text-red-400 font-bold">
+                                    <i class="fa-solid fa-circle-exclamation"></i>
+                                    <span>Student Info Complaints Desk</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 leading-normal">Instantly route structural student misconduct logs through Claude Opus to compose an empathetic but firm parental notice.</p>
+                                <!-- FIX: was text-black on red background — changed to text-white -->
+                                <button class="w-full py-2 bg-red-600 hover:bg-red-700 text-white font-extrabold rounded-lg text-[10px] uppercase tracking-wider transition-colors">Launch Dispute Notice</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════
+         INFRASTRUCTURE
+    ══════════════════════════════════════════════════ -->
+    <section id="infrastructure" class="py-24 px-6 lg:px-16 relative z-10 border-y border-white/5 bg-[#050404]">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center max-w-3xl mx-auto mb-20">
+                <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-2">Zero Resource Contention</p>
+                <h2 class="text-4xl md:text-5xl font-black tracking-tight text-white">Decoupled Processing Hardware</h2>
+                <p class="text-slate-400 mt-4 text-sm font-light">We separate runtime dependencies entirely to optimize load processing capabilities during critical operations.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div class="glass-panel glow-hover p-10 rounded-2xl relative">
+                    <span class="absolute top-6 right-6 font-mono text-[10px] text-red-400 bg-red-950/40 px-3 py-1 rounded">Compute_Node</span>
+                    <h3 class="text-2xl font-bold mb-4 flex items-center gap-3 text-white">
+                        <i class="fa-solid fa-server text-red-500"></i> Separate AI Server Array
+                    </h3>
+                    <p class="text-slate-400 text-xs leading-relaxed mb-6">
+                        Dedicated hardware instances processing linguistic prompt transformations and student behavior analytics maps asynchronously without adding latency to core application operations.
+                    </p>
+                </div>
+                <div class="glass-panel glow-hover p-10 rounded-2xl relative">
+                    <span class="absolute top-6 right-6 font-mono text-[10px] text-red-400 bg-red-950/40 px-3 py-1 rounded">Data_Vault</span>
+                    <h3 class="text-2xl font-bold mb-4 flex items-center gap-3 text-white">
+                        <i class="fa-solid fa-database text-red-500"></i> Isolated Secure Database
+                    </h3>
+                    <p class="text-slate-400 text-xs leading-relaxed mb-6">
+                        Transactional databases storing student identities, examination transcripts, and billing logs are isolated into independent storage instances safeguarded from external web vectors.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════
+         PRICING
+    ══════════════════════════════════════════════════ -->
+    <section id="pricing" class="py-24 relative pricing-stack-section bg-[#030303]">
+        <div class="max-w-4xl mx-auto px-6 lg:px-16 mb-16 text-center">
+            <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-2">Investment Infrastructure</p>
+            <h2 class="text-4xl md:text-5xl font-black tracking-tight text-white">Sustained Project Packages</h2>
+            <p class="text-slate-400 mt-4 text-sm font-light">Every single tier features an exclusive, dedicated engineering development team providing continuous live maintenance and implementation support.</p>
+        </div>
+
+        <div class="max-w-2xl mx-auto px-4 relative cards-stack-container h-[750px]">
+            
+            <!-- Card 1 -->
+            <div class="pricing-card absolute inset-x-0 mx-auto glass-panel-heavy p-8 rounded-3xl flex flex-col justify-between h-[520px] shadow-2xl transition-all" data-index="0">
+                <div>
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <span class="text-[10px] font-mono text-red-400 uppercase tracking-widest">// DEPLOYMENT_01</span>
+                            <h3 class="text-3xl font-black text-white mt-1">Foundational Node</h3>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-3xl font-black text-white">Scale I</span>
+                            <p class="text-[11px] text-red-500 font-mono font-bold mt-1">₹70,000 / Mo</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-6 font-light">Core platform infrastructure deployment designed for scaling singular institutions out of standard manual administration limits.</p>
+                    <div class="grid grid-cols-2 gap-3 text-[11px] text-slate-300 border-t border-white/5 pt-4">
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Claude 4.8 Base Alerts</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Basic Homework Engine</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Shared Storage Nodes</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Basic SMS Dispatches</div>
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-white/5">
+                    <a href="#contact" class="glass-btn glow-hover block w-full text-center py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest text-white">Secure Allocation</a>
+                </div>
+            </div>
+
+            <!-- Card 2 -->
+            <div class="pricing-card absolute inset-x-0 mx-auto glass-panel-heavy p-8 rounded-3xl flex flex-col justify-between h-[520px] shadow-2xl transition-all" data-index="1">
+                <div>
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <span class="text-[10px] font-mono text-red-400 uppercase tracking-widest">// DEPLOYMENT_02</span>
+                            <h3 class="text-3xl font-black text-white mt-1">Syndicate Vanguard</h3>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-3xl font-black text-white">Scale II</span>
+                            <p class="text-[11px] text-red-500 font-mono font-bold mt-1">₹1,00,000 / Mo</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-6 font-light">Expanded execution matrices introducing automated multi-channel routing clusters and customized faculty boards.</p>
+                    <div class="grid grid-cols-2 gap-3 text-[11px] text-slate-300 border-t border-white/5 pt-4">
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Full Student Dashboard</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Basic WhatsApp Bot</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Attendance Monitors</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Test Marks Matrix</div>
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-white/5">
+                    <a href="#contact" class="glass-btn glow-hover block w-full text-center py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest text-white">Secure Allocation</a>
+                </div>
+            </div>
+
+            <!-- Card 3 -->
+            <div class="pricing-card absolute inset-x-0 mx-auto glass-panel-heavy p-8 rounded-3xl flex flex-col justify-between h-[520px] shadow-2xl transition-all" data-index="2">
+                <div>
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <span class="text-[10px] font-mono text-red-400 uppercase tracking-widest">// DEPLOYMENT_03</span>
+                            <h3 class="text-3xl font-black text-white mt-1">Quantum Sovereign</h3>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-3xl font-black text-white">Scale III</span>
+                            <p class="text-[11px] text-red-500 font-mono font-bold mt-1">₹2,00,000 / Mo</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-6 font-light">Complete standalone resource parameters featuring bare-metal processing clusters and library commerce nodes.</p>
+                    <div class="grid grid-cols-2 gap-3 text-[11px] text-slate-300 border-t border-white/5 pt-4">
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Dedicated AI Server</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Separate Core DB</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Full Teacher Dashboard</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Library Checkout Node</div>
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-white/5">
+                    <a href="#contact" class="glass-btn glow-hover block w-full text-center py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest text-white">Secure Allocation</a>
+                </div>
+            </div>
+
+            <!-- Card 4 -->
+            <div class="pricing-card absolute inset-x-0 mx-auto glass-panel-heavy p-8 rounded-3xl flex flex-col justify-between h-[520px] shadow-2xl transition-all" data-index="3">
+                <div>
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <span class="text-[10px] font-mono text-red-400 uppercase tracking-widest">// DEPLOYMENT_04</span>
+                            <h3 class="text-3xl font-black text-white mt-1">Apex Enterprise</h3>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-3xl font-black text-white">Scale IV</span>
+                            <p class="text-[11px] text-red-500 font-mono font-bold mt-1">₹5,00,000 / Mo</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-6 font-light">High-velocity systemic tracking containing behavior forecasting logs, asset tracking boards, and integrated payment rails.</p>
+                    <div class="grid grid-cols-2 gap-3 text-[11px] text-slate-300 border-t border-white/5 pt-4">
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Behavior Telemetry</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Asset Tracking Logic</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Split Payment Portals</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Full Omnichannel Comms</div>
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-white/5">
+                    <a href="#contact" class="glass-btn glow-hover block w-full text-center py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest text-white">Secure Allocation</a>
+                </div>
+            </div>
+
+            <!-- Card 5 — FIX: typo ₹10,00000 → ₹10,00,000 -->
+            <div class="pricing-card absolute inset-x-0 mx-auto glass-panel-heavy p-8 rounded-3xl flex flex-col justify-between h-[520px] shadow-2xl transition-all" data-index="4">
+                <div>
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <span class="text-[10px] font-mono text-red-400 uppercase tracking-widest">// DEPLOYMENT_05</span>
+                            <h3 class="text-3xl font-black text-white mt-1">Consortium Imperium</h3>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-3xl font-black text-white">Scale V</span>
+                            <p class="text-[11px] text-red-500 font-mono font-bold mt-1">₹10,00,000 / Mo</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-6 font-light">Unrestricted architectural deployment engineered for large networks of elite multi-wing universities requiring extreme technical oversight.</p>
+                    <div class="grid grid-cols-2 gap-3 text-[11px] text-slate-300 border-t border-white/5 pt-4">
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Bare-Metal AI Tuning</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Infinite Context Scales</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> Custom Endpoint Nodes</div>
+                        <div><i class="fa-solid fa-square-check text-red-500 mr-2"></i> 24/7 Dedicated Architects</div>
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-white/5">
+                    <a href="#contact" class="glass-btn glow-hover block w-full text-center py-3.5 rounded-xl text-xs font-bold uppercase tracking-widest text-white">Commence Integration</a>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════
+         TEAM
+    ══════════════════════════════════════════════════ -->
+    <section id="team" class="py-24 px-6 lg:px-16 relative z-10 bg-black/50 border-t border-white/5">
+        <div class="max-w-7xl mx-auto">
+            <div class="mb-20">
+                <p class="text-xs font-bold uppercase tracking-widest text-red-500 mb-2">Systems Engineering</p>
+                <h2 class="text-3xl md:text-5xl font-black tracking-tight text-white">The Project Guild</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="glass-panel glow-hover p-8 rounded-2xl relative overflow-hidden group">
+                    <span class="text-xs font-mono text-red-500 uppercase block mb-2">// BASE COMPILING</span>
+                    <h3 class="text-2xl font-bold mb-1 text-white">Shobhit</h3>
+                    <p class="text-xs text-slate-400 font-medium mb-4">Lead Systems Developer</p>
+                    <p class="text-xs text-slate-500 leading-relaxed">Engineers pipeline architectures across decoupled database partitions and manages Claude session routing.</p>
+                </div>
+                <div class="glass-panel glow-hover p-8 rounded-2xl relative overflow-hidden group">
+                    <span class="text-xs font-mono text-red-500 uppercase block mb-2">// INTENTIONAL SPATIALITY</span>
+                    <h3 class="text-2xl font-bold mb-1 text-white">Tejash</h3>
+                    <p class="text-xs text-slate-400 font-medium mb-4">Principal UI/UX Designer</p>
+                    <p class="text-xs text-slate-500 leading-relaxed">Formulated the core dark crimson aesthetic parameters and structured the floating Dynamic Island layouts.</p>
+                </div>
+                <div class="glass-panel glow-hover p-8 rounded-2xl relative overflow-hidden group">
+                    <span class="text-xs font-mono text-red-500 uppercase block mb-2">// OPERATIONS BRIEFING</span>
+                    <h3 class="text-2xl font-bold mb-1 text-white">Yuvraj</h3>
+                    <p class="text-xs text-slate-400 font-medium mb-4">Strategic Communications Lead</p>
+                    <p class="text-xs text-slate-500 leading-relaxed">Bridges granular technical execution metrics into clear, actionable system milestones for board directors.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ══════════════════════════════════════════════════
+         CONTACT
+    ══════════════════════════════════════════════════ -->
+    <section id="contact" class="py-24 px-6 lg:px-16 relative z-10">
+        <div class="max-w-3xl mx-auto glass-panel p-12 rounded-3xl border-red-500/20 shadow-2xl">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-black tracking-tight text-white mb-2">Initiate System Discovery</h2>
+                <p class="text-xs text-slate-400">Configure parameters to generate infrastructure deployment blueprints.</p>
+            </div>
+            <form class="space-y-6" onsubmit="event.preventDefault();">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-mono text-slate-400 mb-2">Authority Representative</label>
+                        <input type="text" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500 transition-colors" placeholder="e.g., Chancellor Sterling">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-mono text-slate-400 mb-2">Institutional Email</label>
+                        <input type="email" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500 transition-colors" placeholder="chancellor@academy.edu">
+                    </div>
+                </div>
+                <button class="glass-btn glow-hover w-full py-4 bg-white text-white font-extrabold uppercase tracking-widest text-xs rounded-xl">
+                    Submit Project Parameters
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Footer — FIX: text-slate-700 → text-slate-500 for visibility -->
+    <footer class="py-8 text-center text-[10px] font-mono text-slate-500 border-t border-white/5 z-10 relative">
+        &copy; 2026 ELYXUI LABS INC. ALL ISOLATED CLUSTERS REGISTERED.
+    </footer>
+
+    <!-- GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // ── Mobile Menu ──────────────────────────────────
+        function openMobileMenu() {
+            const overlay  = document.getElementById('mobile-nav-overlay');
+            const backdrop = document.getElementById('mobile-nav-backdrop');
+            const drawer   = document.getElementById('mobile-nav-drawer');
+
+            overlay.classList.add('menu-open');
+            backdrop.classList.add('menu-open');
+            drawer.classList.add('menu-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileMenu() {
+            const overlay  = document.getElementById('mobile-nav-overlay');
+            const backdrop = document.getElementById('mobile-nav-backdrop');
+            const drawer   = document.getElementById('mobile-nav-drawer');
+
+            backdrop.classList.remove('menu-open');
+            drawer.classList.remove('menu-open');
+            document.body.style.overflow = '';
+
+            // Remove pointer-events after slide-out completes
+            setTimeout(() => overlay.classList.remove('menu-open'), 450);
+        }
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeMobileMenu();
+        });
+
+        window.addEventListener('DOMContentLoaded', () => {
+
+            // 1. iOS Dynamic Island Transition
+            const island       = document.getElementById('island');
+            const compactView  = document.getElementById('island-compact');
+            const expandedView = document.getElementById('island-expanded');
+
+            ScrollTrigger.create({
+                start: "top -50px",
+                onEnter: () => {
+                    island.classList.add('scrolled');
+                    compactView.style.display = 'none';
+                    expandedView.style.display = 'flex';
+                    gsap.to(expandedView, { opacity: 1, duration: 0.3 });
+                },
+                onLeaveBack: () => {
+                    gsap.to(expandedView, { opacity: 0, duration: 0.2, onComplete: () => {
+                        expandedView.style.display = 'none';
+                        compactView.style.display = 'flex';
+                        island.classList.remove('scrolled');
+                    }});
+                }
+            });
+
+            // 2. 3D Parallax Mouse Interaction
+            const target3d = document.getElementById('interactive-3d-card');
+            if (target3d) {
+                window.addEventListener('mousemove', (e) => {
+                    const { clientX, clientY } = e;
+                    const { innerWidth, innerHeight } = window;
+                    const xAngle = ((clientX / innerWidth) - 0.5) * 30;
+                    const yAngle = ((clientY / innerHeight) - 0.5) * -30;
+                    gsap.to(target3d, { rotateY: xAngle, rotateX: yAngle, ease: "power1.out", duration: 0.5 });
+                });
+            }
+
+            // 3. Horizontal Dashboard Scroll Track
+            const track = document.querySelector('.horizontal-track');
+            if (track) {
+                const getScrollAmount = () => -(track.scrollWidth - window.innerWidth + 64);
+                ScrollTrigger.create({
+                    trigger: ".horizontal-scroll-section",
+                    start: "top top",
+                    end: () => `+=${track.scrollWidth - window.innerWidth}`,
+                    pin: true,
+                    animation: gsap.to(track, { x: getScrollAmount, ease: "none" }),
+                    scrub: 1,
+                    invalidateOnRefresh: true
+                });
+            }
+
+            // 4. Stacking Pricing Cards
+            const cards = gsap.utils.toArray('.pricing-card');
+            if (cards.length > 0) {
+                cards.forEach((card, index) => {
+                    gsap.set(card, { y: 0, scale: 1, zIndex: index });
+                });
+
+                const tl = gsap.timeline({
+                    scrollTrigger: {
+                        trigger: ".pricing-stack-section",
+                        start: "top top",
+                        end: () => `+=${cards.length * 450}`,
+                        pin: true,
+                        scrub: 1,
+                        invalidateOnRefresh: true,
+                    }
+                });
+
+                cards.forEach((card, i) => {
+                    if (i === 0) return;
+                    tl.to(cards.slice(0, i), {
+                        scale: (idx) => 1 - (i - idx) * 0.04,
+                        filter: (idx) => `blur(${(i - idx) * 4}px)`,
+                        opacity: (idx) => 1 - (i - idx) * 0.2,
+                        duration: 0.6,
+                        ease: "power2.out"
+                    }, i * 0.8);
+                    tl.fromTo(card,
+                        { y: window.innerHeight, scale: 0.95 },
+                        { y: 0, scale: 1, duration: 1, ease: "power2.out" },
+                        i * 0.8
+                    );
+                });
+            }
+        });
+    </script>
+</body>
+</html>
