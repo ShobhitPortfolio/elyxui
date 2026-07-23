@@ -327,7 +327,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div class="fg"><label>Dashboard ID</label><input id="fDashId" placeholder="e.g. STU001" style="text-transform:uppercase"></div>
         <div class="fg"><label>Roll Number</label><input id="fRoll" placeholder="e.g. STU-001"></div>
       </div>
-      <div class="fg"><label>Quantity</label>
+      <div class="fg"><label>Portal Password</label><input id="fPass" type="password" placeholder="Your student login password" autocomplete="off"></div>
+      <div class="fg" style="margin-bottom:0"><label>Quantity</label>
         <select id="fQty"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select>
       </div>
       <div class="mact">
@@ -537,7 +538,7 @@ function openBooking(key) {
   document.getElementById('modalItemPreview').innerHTML = `
     <div class="modal-item-emoji">${item.emoji||'🍽️'}</div>
     <div><div class="modal-item-name">${item.name}</div><div class="modal-item-price">₹${item.price} per item</div></div>`;
-  ['fName','fDashId','fRoll'].forEach(i => document.getElementById(i).value = '');
+  ['fName','fDashId','fRoll','fPass'].forEach(i => document.getElementById(i).value = '');
   document.getElementById('fClass').value = '';
   document.getElementById('fQty').value   = '1';
   document.getElementById('bookModal').classList.add('on');
@@ -568,6 +569,7 @@ async function confirmOrder() {
   const cls    = document.getElementById('fClass').value;
   const dashId = document.getElementById('fDashId').value.trim().toUpperCase();
   const roll   = document.getElementById('fRoll').value.trim();
+  const pass   = document.getElementById('fPass').value;
   const qty    = parseInt(document.getElementById('fQty').value);
   const errBox = document.getElementById('bookErr');
 
@@ -583,6 +585,22 @@ async function confirmOrder() {
 
   const total = item.price * qty;
   const match = findStudent(dashId);
+
+  // ── Identity check — a Dashboard ID alone proves nothing (IDs are visible on
+  //    ID cards / report cards), so any order that would touch a real
+  //    student's wallet MUST also present the correct portal password.
+  //    Wrong or missing password → the order is rejected outright, before any
+  //    stock or balance transaction ever runs. ──
+  if (match) {
+    if (!pass) {
+      errBox.textContent = 'Enter your portal password to verify it\'s really you.';
+      errBox.className = 'lerr on'; return;
+    }
+    if (pass !== match.data.pass) {
+      errBox.textContent = 'Incorrect password for this Dashboard ID — order not placed.';
+      errBox.className = 'lerr on'; return;
+    }
+  }
 
   if (match && (Number(match.data.canteenBalance)||0) < total) {
     errBox.textContent = `No balance — ₹${Number(match.data.canteenBalance)||0} available, ₹${total} needed.`;
