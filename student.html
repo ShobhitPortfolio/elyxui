@@ -15,8 +15,8 @@
 ║  3. Click ⚙️ Project Settings → General → Your apps             ║
 ║  4. Click </> (Web) to get your firebaseConfig object            ║
 ║  5. Replace the FIREBASE CONFIG block below with YOUR values     ║
-║  6. In Firebase Console → Realtime Database → Rules, set:        ║
-║     { "rules": { ".read": true, ".write": true } }               ║
+║  6. In Firebase Console → Realtime Database → Rules, paste the   ║
+║     rules from database.rules.json (shipped alongside this file) ║
 ║  7. That's it! Data auto-syncs and persists on reload.           ║
 ╚══════════════════════════════════════════════════════════════════╝
 -->
@@ -61,7 +61,7 @@ try {
 async function seedDemoData() {
   if (!window._firebaseReady) return;
   try {
-    const snap = await get(ref(db, 'seededV2'));   // V2 includes passwords
+    const snap = await get(ref(db, 'seededV3'));   // V3 adds complaints demo seed
     if (snap.exists()) return;
     const batch = {};
     // Passwords are now included so Firebase logins work after read-back
@@ -79,7 +79,9 @@ async function seedDemoData() {
     batch['assignments/A002'] = {id:'A002',classes:['IX-B'],subject:'Science',title:'Acid Base Worksheet',desc:'Answer all MCQ and descriptive',issued:today,due:'2025-07-14',by:'Mr. Sunil Kumar'};
     batch['homework/H001'] = {id:'H001',classes:['X-A'],subject:'Mathematics',title:'Practice Set 1',desc:'Page 45-48 all examples',issued:today,due:'2025-07-12',by:'Mrs. Aarti Rawat'};
     batch['tests/T001'] = {id:'T001',classes:['X-A'],subject:'Mathematics',topic:'AP and GP',date:'2025-07-18',maxMarks:25,marks:{STU001:22,STU002:19}};
+    batch['seeded'] = true;
     batch['seededV2'] = true;
+    batch['seededV3'] = true;
     await update(ref(db), batch);
     console.log("Seed data written ✓");
   } catch(e) { console.warn("Seed failed:", e); }
@@ -102,9 +104,20 @@ async function loadFirebaseData() {
   window.dispatchEvent(new CustomEvent('fbLoaded'));
 }
 
+// ─── Live complaints listener — keeps teacher + student views in sync in realtime ───
+function attachComplaintsListener() {
+  if (!window._firebaseReady) return;
+  onValue(ref(db, 'complaints'), (snap) => {
+    const val = snap.exists() ? snap.val() : {};
+    window._liveComplaints = Object.entries(val).map(([k,v]) => ({...v, _fbKey:k})).filter(c => c && c.id);
+    if (window._onComplaintsUpdate) window._onComplaintsUpdate();
+  });
+}
+
 async function initApp() {
   await seedDemoData();
   await loadFirebaseData();
+  attachComplaintsListener();
 }
 </script>
 
@@ -124,6 +137,7 @@ html{height:100%;scroll-behavior:smooth}
   --rule:rgba(255,255,255,.07);--rule2:rgba(255,255,255,.14);
   --f:'Sora',sans-serif;--fm:'JetBrains Mono',monospace;
   --r:25px;--shadow:0 8px 32px rgba(0,0,0,.7);
+  --sidebar-w:220px;
 }
 body{font-family:var(--f);background:var(--void);color:var(--white);min-height:100%;overflow-x:hidden;-webkit-font-smoothing:antialiased}
 body::after{content:'';position:fixed;inset:0;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.025'/%3E%3C/svg%3E");pointer-events:none;z-index:9998}
@@ -211,8 +225,12 @@ body::after{content:'';position:fixed;inset:0;background:url("data:image/svg+xml
 
 /* ── SHARED DASHBOARD ── */
 #studentPage,#teacherPage{flex-direction:column}
-.topbar{height:60px;background:var(--ink);border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:100;flex-shrink:0;}
+.topbar{height:60px;background:var(--ink);border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:300;flex-shrink:0;}
 .tb-L{display:flex;align-items:center;gap:14px}
+.hamburger-btn{display:none;width:36px;height:36px;align-items:center;justify-content:center;background:transparent;border:1px solid var(--rule);cursor:pointer;flex-shrink:0;border-radius:12px;transition:all .15s;flex-direction:column;gap:4px;}
+.hamburger-btn:hover{border-color:var(--gold-ln);background:var(--gold-dim)}
+.hamburger-btn span{display:block;width:16px;height:1.5px;background:var(--silver);border-radius:2px;transition:all .2s}
+.hamburger-btn:hover span{background:var(--gold)}
 .tb-mark{width:36px;height:36px;border:1px solid var(--gold-ln);display:flex;align-items:center;justify-content:center;font-family:var(--fm);font-size:10px;font-weight:600;color:var(--gold);flex-shrink:0;border-radius:12px;}
 .tb-school{font-size:13px;font-weight:600;letter-spacing:-.2px}
 .tb-school small{display:block;font-family:var(--fm);font-size:7px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-top:1px}
@@ -224,7 +242,9 @@ body::after{content:'';position:fixed;inset:0;background:url("data:image/svg+xml
 .tb-out{padding:6px 16px;border:1px solid var(--rule);background:transparent;color:var(--dim);font-family:var(--fm);font-size:8px;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .2s;border-radius:var(--r);}
 .tb-out:hover{border-color:var(--bad-ln);color:var(--bad)}
 .dash{display:flex;flex:1;min-height:0}
-.sidebar{width:220px;flex-shrink:0;background:var(--ink);border-right:1px solid var(--rule);overflow-y:auto;position:sticky;top:60px;height:calc(100vh - 60px);}
+
+/* Sidebar — becomes a slide-in drawer below the responsive breakpoint */
+.sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--ink);border-right:1px solid var(--rule);overflow-y:auto;position:sticky;top:60px;height:calc(100vh - 60px);transition:transform .25s ease;z-index:250;}
 .sb-sec{margin-bottom:0}
 .sb-label{font-family:var(--fm);font-size:7px;letter-spacing:4px;text-transform:uppercase;color:var(--dim);padding:14px 18px 5px;border-bottom:1px solid var(--rule)}
 .sb-item{display:flex;align-items:center;gap:9px;padding:11px 14px 11px 16px;color:var(--silver);cursor:pointer;transition:all .15s;border-left:2px solid transparent;border-bottom:1px solid rgba(255,255,255,.02);font-size:12.5px;user-select:none;margin:4px 8px;border-radius:14px;}
@@ -248,6 +268,7 @@ body::after{content:'';position:fixed;inset:0;background:url("data:image/svg+xml
 .sc-l{font-size:11px;color:var(--silver)}
 .sc-n{font-family:var(--fm);font-size:9px;color:var(--dim);margin-top:5px}
 .twrap{border:1px solid var(--rule);margin-bottom:18px;overflow:hidden;border-radius:var(--r);}
+.tscroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .thead{padding:12px 16px;border-bottom:1px solid var(--rule);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--carbon);border-radius:var(--r) var(--r) 0 0;}
 .tt{font-size:13px;font-weight:600}.ts{font-family:var(--fm);font-size:9px;color:var(--dim)}
 table{width:100%;border-collapse:collapse;background:var(--ink)}
@@ -255,6 +276,9 @@ th{font-family:var(--fm);font-size:8px;letter-spacing:2px;text-transform:upperca
 td{padding:10px 16px;font-size:12.5px;border-bottom:1px solid rgba(255,255,255,.03);color:rgba(255,255,255,.72);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(255,255,255,.025)}
+th.col-actions,td.col-actions{position:sticky;right:0;background:var(--ink);box-shadow:-6px 0 8px -6px rgba(0,0,0,.5)}
+th.col-actions{background:var(--carbon)}
+tr:hover td.col-actions{background:var(--graphite)}
 .bd{display:inline-flex;align-items:center;padding:2px 9px;font-family:var(--fm);font-size:8px;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;border-radius:var(--r);}
 .bk{background:var(--ok-dim);border:1px solid var(--ok-ln);color:var(--ok)}
 .bw{background:var(--warn-dim);border:1px solid var(--warn-ln);color:var(--warn)}
@@ -331,6 +355,8 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .cmp-title{font-size:13px;font-weight:500}
 .cmp-sub{font-family:var(--fm);font-size:9px;color:var(--dim);margin-top:3px}
 .cmp-date{font-family:var(--fm);font-size:8px;color:var(--dim);flex-shrink:0}
+.cmp-reply{margin-top:8px;padding:10px 12px;background:rgba(212,168,67,.06);border-left:2px solid var(--gold-ln);border-radius:0 12px 12px 0;font-size:12px;color:var(--ivory);line-height:1.6}
+.cmp-reply-lbl{font-family:var(--fm);font-size:7px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
 .div{height:1px;background:var(--rule);margin:18px 0}
 .sec-lbl{font-family:var(--fm);font-size:8px;letter-spacing:3px;text-transform:uppercase;color:var(--dim);margin-bottom:10px}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);z-index:500;display:none;align-items:center;justify-content:center;padding:16px}
@@ -355,27 +381,68 @@ tr:hover td{background:rgba(255,255,255,.025)}
 .srch-ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--ash);border-radius:3px}
 .add-fee-row{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--rule)}
+
+/* ── Charts ── */
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px}
+.chart-card{background:var(--carbon);border:1px solid var(--rule);border-radius:var(--r);padding:20px}
+.chart-card.full{grid-column:1/-1}
+.chart-hd{margin-bottom:14px}
+.chart-title{font-size:13px;font-weight:600}
+.chart-sub{font-family:var(--fm);font-size:9px;color:var(--dim);margin-top:2px}
+.pie-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:220px;margin:0 auto}
+.pie-legend{display:flex;flex-direction:column;gap:8px;width:100%}
+.pie-leg-item{display:flex;align-items:center;gap:8px;font-size:11.5px}
+.pie-leg-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0}
+.pie-leg-val{font-family:var(--fm);font-size:9px;color:var(--dim);margin-left:auto;padding-left:10px}
+.pie-center-label{font-family:var(--fm);font-weight:700}
+.bar-chart{display:flex;align-items:flex-end;gap:10px;height:180px;padding:0 4px 24px;position:relative}
+.bar-chart::before{content:'';position:absolute;left:0;right:0;bottom:24px;height:1px;background:var(--rule)}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative;min-width:0}
+.bar-fill{width:60%;max-width:34px;background:linear-gradient(180deg,var(--gold2),var(--gold));border-radius:6px 6px 0 0;transition:height .5s ease;position:relative}
+.bar-fill.bad-bar{background:linear-gradient(180deg,#f87171,var(--bad))}
+.bar-val{font-family:var(--fm);font-size:9px;color:var(--gold2);margin-bottom:4px;white-space:nowrap}
+.bar-lbl{position:absolute;bottom:-22px;font-family:var(--fm);font-size:8px;color:var(--dim);white-space:nowrap;letter-spacing:.5px}
+.line-chart-wrap{position:relative;height:200px;padding:6px 4px}
+.alert-card{border:1px solid var(--bad-ln);background:var(--bad-dim);border-radius:var(--r);padding:16px 18px;margin-bottom:10px}
+.alert-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px}
+.alert-title{font-size:13px;font-weight:600;color:var(--bad);display:flex;align-items:center;gap:8px}
+.alert-count{font-family:var(--fm);font-size:9px;background:var(--bad);color:var(--void);padding:2px 8px;border-radius:var(--r)}
+.risk-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid rgba(239,68,68,.1);flex-wrap:wrap}
+.risk-row:last-child{border-bottom:none}
+.risk-name{font-size:12.5px;font-weight:500;flex:1;min-width:120px}
+.risk-tags{display:flex;gap:5px;flex-wrap:wrap}
+.risk-tag{font-family:var(--fm);font-size:7px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;border-radius:var(--r);background:rgba(239,68,68,.14);border:1px solid var(--bad-ln);color:#fca5a5}
+.no-risk{text-align:center;padding:24px;color:var(--ok);font-family:var(--fm);font-size:11px}
+
 @media(max-width:768px){
   .login-box{padding:0 14px}
   .lcard{padding:20px 16px}
   .topbar{padding:0 14px;height:52px}
   .tb-school small{display:none}
-  .sidebar{display:none}
-  .main{padding:14px 14px 80px}
+  .main{padding:14px 14px 24px}
   .sgrid{grid-template-columns:1fr 1fr}
   .r2,.r3{grid-template-columns:1fr}
   .mbox{border-radius:var(--r);max-height:96vh}
   .mhd,.mbody{padding-left:16px;padding-right:16px}
   table{font-size:11.5px}th,td{padding:8px 10px}
-  .mob-nav{display:flex!important}
+  .col-actions{padding-left:8px;padding-right:8px}
+  .col-actions .btn{display:block;width:100%;margin:0 0 4px;text-align:center}
+  .col-actions .btn:last-child{margin-bottom:0}
   .p-title{font-size:18px}
   .otp-b{font-size:15px;padding:7px 2px}
   .otp-demo-code{font-size:22px;letter-spacing:8px}
+  .chart-row{grid-template-columns:1fr}
+  .pie-wrap{max-width:180px}
 }
-.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--ink);border-top:1px solid var(--rule);padding:0 4px env(safe-area-inset-bottom,0)}
-.mn-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:9px 4px 7px;cursor:pointer;color:var(--dim);transition:color .15s;font-family:var(--fm);font-size:7px;gap:3px;letter-spacing:1px;text-transform:uppercase}
-.mn-item.on{color:var(--gold)}
-.mn-item .mi{font-size:17px}
+
+/* ── Responsive sidebar → drawer breakpoint (also covers "smaller laptop screen") ── */
+@media(max-width:1180px){
+  .hamburger-btn{display:flex}
+  .sidebar{position:fixed;top:0;left:0;height:100vh;transform:translateX(-100%);box-shadow:var(--shadow);z-index:400;padding-top:60px;}
+  .sidebar.open{transform:translateX(0)}
+  .sb-overlay{content:'';position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:350;display:none}
+  .sb-overlay.on{display:block}
+}
 </style>
 </head>
 <body>
@@ -439,8 +506,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
 
 <!-- STUDENT DASHBOARD -->
 <div id="studentPage" class="page">
+  <div class="sb-overlay" id="stuOverlay" onclick="closeSidebar('stu')"></div>
   <div class="topbar">
     <div class="tb-L">
+      <button class="hamburger-btn" id="stuHam" onclick="toggleSidebar('stu')"><span></span><span></span><span></span></button>
       <div class="tb-mark">EIS</div>
       <div class="tb-school">EIS Hyderabad<small>Student Portal</small></div>
     </div>
@@ -468,6 +537,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div class="sb-item" onclick="showS('canteen',this)"><span class="si">🍽️</span><span class="st">Canteen</span></div>
         <div class="sb-item" onclick="showS('library',this)"><span class="si">📖</span><span class="st">Library</span></div>
         <div class="sb-item" onclick="showS('teachers',this)"><span class="si">👨‍🏫</span><span class="st">Teachers</span></div>
+        <div class="sb-item" onclick="showS('complaints',this)"><span class="si">📣</span><span class="st">Complaints</span></div>
         <div class="sb-item" onclick="showS('profile',this)"><span class="si">👤</span><span class="st">My Profile</span></div>
       </div>
     </div>
@@ -475,13 +545,27 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="panel on" id="s-overview">
         <div class="phd"><div class="p-eye">Dashboard</div><div class="p-title" id="stuGreet">Welcome!</div><div class="p-sub">Academic overview · EIS Hyderabad · Session 2024–2025</div></div>
         <div class="sgrid" id="stuStatGrid"></div>
+        <div class="chart-row">
+          <div class="chart-card">
+            <div class="chart-hd"><div class="chart-title">Work Completion</div><div class="chart-sub">Assignments + homework done vs pending</div></div>
+            <div class="pie-wrap" id="stuWorkPie"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-hd"><div class="chart-title">Attendance</div><div class="chart-sub">Present vs absent, current session</div></div>
+            <div class="pie-wrap" id="stuAttPie"></div>
+          </div>
+        </div>
+        <div class="chart-card full" style="margin-bottom:18px">
+          <div class="chart-hd"><div class="chart-title">Academic Performance</div><div class="chart-sub">Trend across recorded tests &amp; exams (%)</div></div>
+          <div class="line-chart-wrap" id="stuPerfLine"></div>
+        </div>
         <div class="r2" style="gap:16px">
-          <div><div class="twrap"><div class="thead"><div class="tt">Pending Assignments</div></div><table><thead><tr><th>Subject</th><th>Title</th><th>Due</th></tr></thead><tbody id="ovAsgTable"></tbody></table></div></div>
-          <div><div class="twrap"><div class="thead"><div class="tt">Pending Homework</div></div><table><thead><tr><th>Subject</th><th>Title</th><th>Due</th></tr></thead><tbody id="ovHwTable"></tbody></table></div></div>
+          <div><div class="twrap"><div class="thead"><div class="tt">Pending Assignments</div></div><div class="tscroll"><table><thead><tr><th>Subject</th><th>Title</th><th>Due</th></tr></thead><tbody id="ovAsgTable"></tbody></table></div></div></div>
+          <div><div class="twrap"><div class="thead"><div class="tt">Pending Homework</div></div><div class="tscroll"><table><thead><tr><th>Subject</th><th>Title</th><th>Due</th></tr></thead><tbody id="ovHwTable"></tbody></table></div></div></div>
         </div>
       </div>
-      <div class="panel" id="s-assignments"><div class="phd"><div class="p-eye">Academics</div><div class="p-title">Assignments</div><div class="p-sub">Assignments issued to your class</div></div><div class="twrap"><div class="thead"><div class="tt">Assignment Log</div></div><table><thead><tr><th>Subject</th><th>Title</th><th>Description</th><th>Issued</th><th>Due</th><th>Status</th></tr></thead><tbody id="stuAsgTable"></tbody></table></div></div>
-      <div class="panel" id="s-homework"><div class="phd"><div class="p-eye">Academics</div><div class="p-title">Homework</div><div class="p-sub">Homework issued to your class</div></div><div class="twrap"><div class="thead"><div class="tt">Homework Log</div></div><table><thead><tr><th>Subject</th><th>Title</th><th>Description</th><th>Issued</th><th>Due</th><th>Status</th></tr></thead><tbody id="stuHwTable"></tbody></table></div></div>
+      <div class="panel" id="s-assignments"><div class="phd"><div class="p-eye">Academics</div><div class="p-title">Assignments</div><div class="p-sub">Assignments issued to your class</div></div><div class="twrap"><div class="thead"><div class="tt">Assignment Log</div></div><div class="tscroll"><table><thead><tr><th>Subject</th><th>Title</th><th>Description</th><th>Issued</th><th>Due</th><th>Status</th></tr></thead><tbody id="stuAsgTable"></tbody></table></div></div></div>
+      <div class="panel" id="s-homework"><div class="phd"><div class="p-eye">Academics</div><div class="p-title">Homework</div><div class="p-sub">Homework issued to your class</div></div><div class="twrap"><div class="thead"><div class="tt">Homework Log</div></div><div class="tscroll"><table><thead><tr><th>Subject</th><th>Title</th><th>Description</th><th>Issued</th><th>Due</th><th>Status</th></tr></thead><tbody id="stuHwTable"></tbody></table></div></div></div>
       <div class="panel" id="s-classwork"><div class="phd"><div class="p-eye">Academics</div><div class="p-title">Classwork</div><div class="p-sub">Classwork topics covered in your class</div></div><div id="stuCWContent"></div></div>
       <div class="panel" id="s-tests"><div class="phd"><div class="p-eye">Assessment</div><div class="p-title">Test Marks</div><div class="p-sub">Class test scores and performance</div></div><div id="stuTestContent"></div></div>
       <div class="panel" id="s-exams"><div class="phd"><div class="p-eye">Academic Results</div><div class="p-title">Exam Results</div><div class="p-sub">Official examination mark sheets</div></div><div id="stuExamContent"></div></div>
@@ -490,22 +574,30 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="panel" id="s-canteen"><div class="phd"><div class="p-eye">Services</div><div class="p-title">Canteen</div><div class="p-sub">Canteen balance and transaction history</div></div><div id="stuCanteenContent"></div></div>
       <div class="panel" id="s-library"><div class="phd"><div class="p-eye">Services</div><div class="p-title">Library</div><div class="p-sub">Issued books and return status</div></div><div id="stuLibContent"></div></div>
       <div class="panel" id="s-teachers"><div class="phd"><div class="p-eye">Faculty</div><div class="p-title">Teachers</div><div class="p-sub">Contact directory for your teachers</div></div><div id="stuTchContent"></div></div>
+      <div class="panel" id="s-complaints">
+        <div class="phd"><div class="p-eye">Communication</div><div class="p-title">Complaints &amp; Feedback</div><div class="p-sub">Raise an issue — your class teacher will respond here</div></div>
+        <div class="icard">
+          <div class="ic-t">Submit a Complaint</div>
+          <div class="ic-s">Visible to your teachers instantly</div>
+          <div class="fg"><label>Category</label><select id="stuCmpCat"><option>Academic Performance</option><option>Behaviour</option><option>Fee Issue</option><option>Health Concern</option><option>Canteen Issue</option><option>Library Issue</option><option>Transport Issue</option><option>Other</option></select></div>
+          <div class="fg"><label>Subject</label><input type="text" id="stuCmpSubj" placeholder="Brief subject of complaint…"></div>
+          <div class="fg"><label>Details</label><textarea id="stuCmpDetail" placeholder="Describe the issue in detail…"></textarea></div>
+          <button class="btn btn-p" onclick="stuSubmitComplaint()">Submit →</button>
+        </div>
+        <div class="sec-lbl">Your Complaints</div>
+        <div id="stuComplaintsList"></div>
+      </div>
       <div class="panel" id="s-profile"><div class="phd"><div class="p-eye">Account</div><div class="p-title">My Profile</div><div class="p-sub">Personal information on record</div></div><div id="stuProfContent"></div></div>
     </div>
-  </div>
-  <div class="mob-nav" id="stuMobNav">
-    <div class="mn-item on" onclick="showS('overview',this,true)"><div class="mi">⬡</div><span>Home</span></div>
-    <div class="mn-item" onclick="showS('assignments',this,true)"><div class="mi">📋</div><span>Tasks</span></div>
-    <div class="mn-item" onclick="showS('attendance',this,true)"><div class="mi">📅</div><span>Attend</span></div>
-    <div class="mn-item" onclick="showS('exams',this,true)"><div class="mi">📊</div><span>Marks</span></div>
-    <div class="mn-item" onclick="showS('profile',this,true)"><div class="mi">👤</div><span>Profile</span></div>
   </div>
 </div>
 
 <!-- TEACHER DASHBOARD -->
 <div id="teacherPage" class="page">
+  <div class="sb-overlay" id="tchOverlay" onclick="closeSidebar('tch')"></div>
   <div class="topbar">
     <div class="tb-L">
+      <button class="hamburger-btn" id="tchHam" onclick="toggleSidebar('tch')"><span></span><span></span><span></span></button>
       <div class="tb-mark">EIS</div>
       <div class="tb-school">EIS Hyderabad<small>Teacher Portal</small></div>
     </div>
@@ -533,14 +625,28 @@ tr:hover td{background:rgba(255,255,255,.025)}
         <div class="sb-item" onclick="showT('fees',this)"><span class="si">💳</span><span class="st">Fee Records</span></div>
         <div class="sb-item" onclick="showT('library',this)"><span class="si">📖</span><span class="st">Library</span></div>
         <div class="sb-item" onclick="showT('canteen',this)"><span class="si">🍽️</span><span class="st">Canteen</span></div>
-        <div class="sb-item" onclick="showT('complaints',this)"><span class="si">📣</span><span class="st">Complaints</span></div>
+        <div class="sb-item" onclick="showT('complaints',this)"><span class="si">📣</span><span class="st">Complaints</span><span class="sb-badge" id="cmpBadge" style="display:none">!</span></div>
+      </div>
+      <div class="sb-sec">
+        <div class="sb-label">Staff</div>
+        <div class="sb-item" onclick="showT('staff',this)"><span class="si">🧑‍🏫</span><span class="st">Teachers</span></div>
       </div>
     </div>
     <div class="main" id="tchMain">
       <div class="panel on" id="t-overview">
         <div class="phd"><div class="p-eye">Admin Dashboard</div><div class="p-title" id="tchGreet">Good Day!</div><div class="p-sub">EIS Hyderabad — School management overview</div></div>
         <div class="sgrid" id="tchStatGrid"></div>
-        <div class="twrap"><div class="thead"><div class="tt">Today's Attendance Summary</div></div><table><thead><tr><th>Class</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th><th>Status</th></tr></thead><tbody id="tchAttSum"></tbody></table></div>
+
+        <div id="riskAlertWrap"></div>
+
+        <div class="chart-row">
+          <div class="chart-card full">
+            <div class="chart-hd"><div class="chart-title">Fee Collection by Month</div><div class="chart-sub">Collected vs pending amount (₹)</div></div>
+            <div class="bar-chart" id="tchFeeBar" style="margin-bottom:14px"></div>
+          </div>
+        </div>
+
+        <div class="twrap"><div class="thead"><div class="tt">Today's Attendance Summary</div></div><div class="tscroll"><table><thead><tr><th>Class</th><th>Present</th><th>Absent</th><th>Total</th><th>%</th><th>Status</th></tr></thead><tbody id="tchAttSum"></tbody></table></div></div>
       </div>
       <div class="panel" id="t-students">
         <div class="phd"><div class="p-eye">Roster</div><div class="p-title">Student Management</div><div class="p-sub">Add, edit, transfer students</div></div>
@@ -551,7 +657,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
             <button class="btn btn-p btn-sm" onclick="openModal('addStuMod')">+ Add Student</button>
           </div>
           <div class="twrap" style="margin:0"><div class="thead"><div class="tt" id="stuTblTitle">All Students</div></div>
-          <table><thead><tr><th>Roll</th><th>Name</th><th>Class</th><th>Phone</th><th>Fees</th><th>Actions</th></tr></thead><tbody id="tchStuTable"></tbody></table></div>
+          <div class="tscroll"><table><thead><tr><th>Roll</th><th>Name</th><th>Class</th><th>Phone</th><th>Fees</th><th class="col-actions">Actions</th></tr></thead><tbody id="tchStuTable"></tbody></table></div></div>
         </div>
       </div>
       <div class="panel" id="t-attendance">
@@ -585,7 +691,13 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <button class="btn btn-p" onclick="sendAssignment()">Issue Assignment →</button>
         </div>
         <div class="twrap"><div class="thead"><div class="tt">Assignment Log</div></div>
-        <table><thead><tr><th>Classes</th><th>Subject</th><th>Title</th><th>Issued</th><th>Due</th><th></th></tr></thead><tbody id="tchAsgTable"></tbody></table></div>
+        <div class="tscroll"><table><thead><tr><th>Classes</th><th>Subject</th><th>Title</th><th>Issued</th><th>Due</th><th class="col-actions"></th></tr></thead><tbody id="tchAsgTable"></tbody></table></div></div>
+        <div class="icard" id="asgStatusPanel" style="display:none">
+          <div class="ic-t" id="asgStatusTitle">Student Status</div>
+          <div class="ic-s">Mark each student's completion status — unmarked items auto-complete 5 days after due date</div>
+          <div id="asgStatusList"></div>
+          <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-g" onclick="document.getElementById('asgStatusPanel').style.display='none'">Close</button></div>
+        </div>
       </div>
       <div class="panel" id="t-homework">
         <div class="phd"><div class="p-eye">Academics</div><div class="p-title">Homework</div><div class="p-sub">Assign homework to classes</div></div>
@@ -601,7 +713,13 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <button class="btn btn-p" onclick="sendHomework()">Assign Homework →</button>
         </div>
         <div class="twrap"><div class="thead"><div class="tt">Homework Log</div></div>
-        <table><thead><tr><th>Classes</th><th>Subject</th><th>Title</th><th>Issued</th><th>Due</th><th></th></tr></thead><tbody id="tchHwTable"></tbody></table></div>
+        <div class="tscroll"><table><thead><tr><th>Classes</th><th>Subject</th><th>Title</th><th>Issued</th><th>Due</th><th class="col-actions"></th></tr></thead><tbody id="tchHwTable"></tbody></table></div></div>
+        <div class="icard" id="hwStatusPanel" style="display:none">
+          <div class="ic-t" id="hwStatusTitle">Student Status</div>
+          <div class="ic-s">Mark each student's completion status — unmarked items auto-complete 5 days after due date</div>
+          <div id="hwStatusList"></div>
+          <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-g" onclick="document.getElementById('hwStatusPanel').style.display='none'">Close</button></div>
+        </div>
       </div>
       <div class="panel" id="t-classwork">
         <div class="phd"><div class="p-eye">Academics</div><div class="p-title">Classwork</div><div class="p-sub">Record classwork topics covered today</div></div>
@@ -616,7 +734,13 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <button class="btn btn-p" onclick="saveClasswork()">Save Classwork →</button>
         </div>
         <div class="twrap"><div class="thead"><div class="tt">Classwork Log</div></div>
-        <table><thead><tr><th>Class</th><th>Subject</th><th>Topic</th><th>Date</th><th>Notes</th><th></th></tr></thead><tbody id="cwTable"></tbody></table></div>
+        <div class="tscroll"><table><thead><tr><th>Class</th><th>Subject</th><th>Topic</th><th>Date</th><th>Notes</th><th class="col-actions"></th></tr></thead><tbody id="cwTable"></tbody></table></div></div>
+        <div class="icard" id="cwStatusPanel" style="display:none">
+          <div class="ic-t" id="cwStatusTitle">Student Status</div>
+          <div class="ic-s">Mark each student's completion status — unmarked items auto-complete 5 days after entry date</div>
+          <div id="cwStatusList"></div>
+          <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-g" onclick="document.getElementById('cwStatusPanel').style.display='none'">Close</button></div>
+        </div>
       </div>
       <div class="panel" id="t-tests">
         <div class="phd"><div class="p-eye">Assessment</div><div class="p-title">Class Tests</div><div class="p-sub">Schedule tests and enter obtained marks</div></div>
@@ -632,7 +756,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <button class="btn btn-p" onclick="scheduleTest()">Schedule Test →</button>
         </div>
         <div class="twrap"><div class="thead"><div class="tt">Test Schedule</div></div>
-        <table><thead><tr><th>Classes</th><th>Subject</th><th>Topic</th><th>Date</th><th>Max</th><th>Status</th><th>Actions</th></tr></thead><tbody id="tchTestTable"></tbody></table></div>
+        <div class="tscroll"><table><thead><tr><th>Classes</th><th>Subject</th><th>Topic</th><th>Date</th><th>Max</th><th>Status</th><th class="col-actions">Actions</th></tr></thead><tbody id="tchTestTable"></tbody></table></div></div>
         <div class="icard" id="marksPanel" style="display:none">
           <div class="ic-t" id="marksPanelTitle">Enter Test Marks</div>
           <div class="ic-s">Enter obtained marks per student</div>
@@ -657,6 +781,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <div class="panel" id="t-fees">
         <div class="phd"><div class="p-eye">Finance</div><div class="p-title">Fee Records</div><div class="p-sub">Manage student fee payments — amounts are editable per student per month</div></div>
         <div class="sgrid" id="tchFeeStats"></div>
+        <div class="chart-card" style="margin-bottom:16px">
+          <div class="chart-hd"><div class="chart-title">Fee Collection by Month</div><div class="chart-sub">Collected vs pending amount (₹)</div></div>
+          <div class="bar-chart" id="tchFeeBar2"></div>
+        </div>
         <div class="icard" style="margin-bottom:16px">
           <div class="ic-t">Add Fee Month</div>
           <div class="ic-s">Create a new fee entry across all students or a specific class</div>
@@ -676,12 +804,12 @@ tr:hover td{background:rgba(255,255,255,.025)}
               <button class="btn btn-ok btn-sm" onclick="markSelPaid()">Mark Paid</button>
             </div>
           </div>
-          <table><thead><tr>
+          <div class="tscroll"><table><thead><tr>
             <th><input type="checkbox" id="feeChkAll" onclick="toggleFeeAll()" style="accent-color:var(--gold)"></th>
             <th>Student</th><th>Class</th><th>Month</th>
             <th>Amount ₹ <span style="font-size:7px;color:var(--dim);font-weight:300">(editable)</span></th>
-            <th>Status</th><th>Action</th>
-          </tr></thead><tbody id="feeTable"></tbody></table>
+            <th>Status</th><th class="col-actions">Action</th>
+          </tr></thead><tbody id="feeTable"></tbody></table></div>
         </div>
       </div>
       <div class="panel" id="t-library">
@@ -699,7 +827,7 @@ tr:hover td{background:rgba(255,255,255,.025)}
           </div>
         </div>
         <div class="twrap"><div class="thead"><div class="tt">Library Records</div></div>
-        <table><thead><tr><th>Student</th><th>Class</th><th>Book</th><th>Due Date</th><th>Status</th></tr></thead><tbody id="libTable"></tbody></table></div>
+        <div class="tscroll"><table><thead><tr><th>Student</th><th>Class</th><th>Book</th><th>Due Date</th><th>Status</th></tr></thead><tbody id="libTable"></tbody></table></div></div>
       </div>
       <div class="panel" id="t-canteen">
         <div class="phd"><div class="p-eye">Services</div><div class="p-title">Canteen Management</div><div class="p-sub">Add balance to student canteen accounts</div></div>
@@ -712,10 +840,10 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <button class="btn btn-p" onclick="addCanteenBalance()">Add Balance →</button>
         </div>
         <div class="twrap"><div class="thead"><div class="tt">Canteen Balance Summary</div></div>
-        <table><thead><tr><th>Student</th><th>Class</th><th>Balance (₹)</th><th>Status</th></tr></thead><tbody id="cantTable"></tbody></table></div>
+        <div class="tscroll"><table><thead><tr><th>Student</th><th>Class</th><th>Balance (₹)</th><th>Status</th></tr></thead><tbody id="cantTable"></tbody></table></div></div>
       </div>
       <div class="panel" id="t-complaints">
-        <div class="phd"><div class="p-eye">Communication</div><div class="p-title">Student Complaints</div><div class="p-sub">View complaints submitted by students and parents</div></div>
+        <div class="phd"><div class="p-eye">Communication</div><div class="p-title">Student Complaints</div><div class="p-sub">View complaints submitted by students and reply — replies sync live to the student portal</div></div>
         <div class="icard">
           <div class="ic-t">Submit Complaint / Feedback</div>
           <div class="r2">
@@ -726,16 +854,44 @@ tr:hover td{background:rgba(255,255,255,.025)}
           <div class="fg"><label>Details</label><textarea id="cmpDetail" placeholder="Describe the issue in detail…"></textarea></div>
           <button class="btn btn-p" onclick="submitComplaint()">Submit →</button>
         </div>
+        <div class="sec-lbl">All Complaints (Student &amp; Staff Submitted)</div>
         <div id="complaintsList"></div>
       </div>
+      <div class="panel" id="t-staff">
+        <div class="phd"><div class="p-eye">Faculty</div><div class="p-title">Teacher Management</div><div class="p-sub">Add and manage other teachers on the staff — set their login ID and password here</div></div>
+        <div class="icard">
+          <div class="ic-t" id="addTchTitle">Add Teacher</div>
+          <div class="ic-s">Fill all required fields — Teacher ID and Password are what they'll use to log in</div>
+          <input type="hidden" id="editTchId">
+          <div class="r2">
+            <div class="fg"><label>Teacher ID *</label><input type="text" id="tRoll" placeholder="e.g. TCH-003"></div>
+            <div class="fg"><label>Full Name *</label><input type="text" id="tFn" placeholder="e.g. Mrs. Kavita Nair"></div>
+          </div>
+          <div class="r2">
+            <div class="fg"><label>Subject *</label><select id="tSub"><option value="">—</option><option>Mathematics</option><option>Science</option><option>Physics</option><option>Chemistry</option><option>Biology</option><option>English</option><option>Hindi</option><option>Social Science</option><option>Computer Science</option><option>Sanskrit</option><option>Physical Education</option></select></div>
+            <div class="fg"><label>Class Teacher Of *</label><select id="tCls"><option value="">— Select Class —</option></select></div>
+          </div>
+          <div class="r2">
+            <div class="fg"><label>Mobile Number *</label><input type="tel" id="tPh" maxlength="10" placeholder="10-digit number"></div>
+            <div class="fg"><label>Login Password *</label><input type="text" id="tPw" placeholder="Set a password, or leave blank to auto-generate"></div>
+          </div>
+          <div class="mact" style="justify-content:flex-start">
+            <button class="btn btn-p" onclick="saveTeacher()">Save Teacher →</button>
+            <button class="btn btn-g" id="tchFormCancelBtn" style="display:none" onclick="resetTeacherForm()">Cancel Edit</button>
+          </div>
+        </div>
+        <div class="icard" id="tchCredsBox" style="display:none;border-color:var(--gold-ln);background:var(--gold-dim)">
+          <div class="ic-t" style="color:var(--gold)">✅ Teacher Credentials</div>
+          <div class="ic-s">Share these with the teacher so they can log in</div>
+          <div class="pgrid">
+            <div class="pfield"><div class="pfl">Teacher ID</div><div class="pfv" id="tchCredsId" style="font-family:var(--fm);color:var(--gold2);font-weight:600"></div></div>
+            <div class="pfield"><div class="pfl">Password</div><div class="pfv" id="tchCredsPw" style="font-family:var(--fm);color:var(--gold2);font-weight:600"></div></div>
+          </div>
+        </div>
+        <div class="twrap"><div class="thead"><div class="tt">All Teachers</div></div>
+        <div class="tscroll"><table><thead><tr><th>ID</th><th>Name</th><th>Subject</th><th>Class Teacher</th><th>Mobile</th><th>Password</th><th class="col-actions">Actions</th></tr></thead><tbody id="tchStaffTable"></tbody></table></div></div>
+      </div>
     </div>
-  </div>
-  <div class="mob-nav" id="tchMobNav">
-    <div class="mn-item on" onclick="showT('overview',this,true)"><div class="mi">⬡</div><span>Home</span></div>
-    <div class="mn-item" onclick="showT('students',this,true)"><div class="mi">👥</div><span>Students</span></div>
-    <div class="mn-item" onclick="showT('attendance',this,true)"><div class="mi">📅</div><span>Attend</span></div>
-    <div class="mn-item" onclick="showT('tests',this,true)"><div class="mi">📝</div><span>Tests</span></div>
-    <div class="mn-item" onclick="showT('fees',this,true)"><div class="mi">💳</div><span>Fees</span></div>
   </div>
 </div>
 
@@ -762,6 +918,16 @@ tr:hover td{background:rgba(255,255,255,.025)}
       <input type="hidden" id="moveStuId">
       <div class="fg"><label>New Class</label><select id="moveToClass"></select></div>
       <div class="mact"><button class="btn btn-g" onclick="closeModal('moveStuMod')">Cancel</button><button class="btn btn-p" onclick="confirmMove()">Transfer</button></div>
+    </div>
+  </div>
+</div>
+<div class="ov" id="replyCmpMod">
+  <div class="mbox" style="max-width:420px">
+    <div class="mhd"><div><div class="mhd-t">Reply to Complaint</div><div class="mhd-s" id="replyCmpSub"></div></div><button class="mc" onclick="closeModal('replyCmpMod')">×</button></div>
+    <div class="mbody">
+      <input type="hidden" id="replyCmpId">
+      <div class="fg"><label>Your Reply</label><textarea id="replyCmpText" placeholder="Type a response the student will see…"></textarea></div>
+      <div class="mact"><button class="btn btn-g" onclick="closeModal('replyCmpMod')">Cancel</button><button class="btn btn-p" onclick="saveComplaintReply()">Send Reply</button></div>
     </div>
   </div>
 </div>
@@ -838,6 +1004,8 @@ let COMPLAINTS = [];
    3. applyFirebaseData() below overwrites the local vars with Firebase data
    4. Login button is locked until data arrives (max 5s, then unlocks anyway)
    5. Passwords in old seed are missing → _PASS fallback handles that
+   6. A live onValue() listener on 'complaints' keeps student + teacher
+      complaint views in sync in realtime, without needing a page reload
 ════════════════════════════════════════════════════════════════════ */
 
 // Known passwords for the 5 demo students & 2 demo teachers.
@@ -872,6 +1040,15 @@ window.addEventListener('fbLoaded', function() {
     setTimeout(() => bar.classList.add('hidden'), 2500);
   }
 });
+
+// Live complaints sync — fired every time the 'complaints' node changes in Firebase
+window._onComplaintsUpdate = function() {
+  if (!window._liveComplaints) return;
+  COMPLAINTS = window._liveComplaints.slice().sort((a,b) => new Date(b.date) - new Date(a.date));
+  // Re-render whichever complaint views are currently active
+  if (user && role === 'teacher') { renderComplaints(); }
+  if (user && role === 'student') { renderStuComplaints(); }
+};
 
 function applyFirebaseData() {
   const d = window._fbData;
@@ -1002,8 +1179,97 @@ function doLogout(){
   document.getElementById('lid').value='';document.getElementById('lpw').value='';
   document.getElementById('studentPage').classList.remove('active');
   document.getElementById('teacherPage').classList.remove('active');
+  closeSidebar('stu');closeSidebar('tch');
   goStep(1);
   const lp=document.getElementById('loginPage');lp.style.display='flex';lp.classList.add('active');
+}
+
+/* ═══ SIDEBAR DRAWER (hamburger nav) ═══ */
+function toggleSidebar(who){
+  const sb=document.getElementById(who+'SB');
+  const ov=document.getElementById(who+'Overlay');
+  const isOpen=sb.classList.contains('open');
+  if(isOpen){closeSidebar(who);}else{sb.classList.add('open');ov.classList.add('on');}
+}
+function closeSidebar(who){
+  const sb=document.getElementById(who+'SB');
+  const ov=document.getElementById(who+'Overlay');
+  if(sb)sb.classList.remove('open');
+  if(ov)ov.classList.remove('on');
+}
+
+/* ═══ CHART HELPERS ═══ */
+function renderPieChart(containerId, segments, centerLabel){
+  // segments: [{label, value, color}] — larger donut, thinner ring, SaaS-card style
+  const total=segments.reduce((a,b)=>a+b.value,0)||1;
+  const size=172,r=76,cx=86,cy=86,hole=58;
+  let acc=0;
+  const paths=segments.map(seg=>{
+    const frac=seg.value/total;
+    const startAngle=acc*2*Math.PI-Math.PI/2;
+    acc+=frac;
+    const endAngle=acc*2*Math.PI-Math.PI/2;
+    const x1=cx+r*Math.cos(startAngle),y1=cy+r*Math.sin(startAngle);
+    const x2=cx+r*Math.cos(endAngle),y2=cy+r*Math.sin(endAngle);
+    const large=frac>0.5?1:0;
+    if(frac>=0.999){return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${seg.color}"></circle>`;}
+    if(frac<=0.0001) return '';
+    return `<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${seg.color}"></path>`;
+  }).join('');
+  const pctMain=Math.round((segments[0]?.value||0)/total*100);
+  const svg=`<svg width="${size}" height="${size}" viewBox="0 0 172 172" style="flex-shrink:0">
+    ${paths}
+    <circle cx="${cx}" cy="${cy}" r="${hole}" fill="var(--carbon)"></circle>
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" class="pie-center-label" fill="var(--white)" font-size="24">${pctMain}%</text>
+    <text x="${cx}" y="${cy+16}" text-anchor="middle" fill="var(--dim)" font-family="JetBrains Mono, monospace" font-size="7.5" letter-spacing="1.5">${centerLabel||''}</text>
+  </svg>`;
+  const legend=`<div class="pie-legend">${segments.map(s=>`<div class="pie-leg-item"><span class="pie-leg-dot" style="background:${s.color}"></span>${s.label}<span class="pie-leg-val">${s.value}</span></div>`).join('')}</div>`;
+  document.getElementById(containerId).innerHTML=svg+legend;
+}
+
+function renderBarChart(containerId, bars, opts){
+  // bars: [{label, value, sub}] opts:{maxOverride, prefix, badBar(v)=>bool}
+  opts=opts||{};
+  const max=opts.maxOverride||Math.max(...bars.map(b=>b.value),1);
+  const html=bars.map(b=>{
+    const h=Math.max(4,Math.round((b.value/max)*130));
+    const isBad=opts.badBar?opts.badBar(b):false;
+    return `<div class="bar-col">
+      <div class="bar-val">${opts.prefix||''}${b.value.toLocaleString('en-IN')}</div>
+      <div class="bar-fill ${isBad?'bad-bar':''}" style="height:${h}px"></div>
+      <div class="bar-lbl">${b.label}</div>
+    </div>`;
+  }).join('');
+  document.getElementById(containerId).innerHTML=html;
+}
+
+function renderLineChart(containerId, points){
+  // points: [{label, value}] value is 0-100
+  if(!points.length){document.getElementById(containerId).innerHTML='<p style="color:var(--dim);font-family:var(--fm);font-size:11px;text-align:center;padding:40px 0">No test or exam data recorded yet.</p>';return;}
+  const w=680,h=170,padL=30,padR=14,padT=14,padB=26;
+  const innerW=w-padL-padR,innerH=h-padT-padB;
+  const stepX=points.length>1?innerW/(points.length-1):0;
+  const pts=points.map((p,i)=>{
+    const x=padL+i*stepX;
+    const y=padT+innerH-(Math.max(0,Math.min(100,p.value))/100)*innerH;
+    return {x,y,...p};
+  });
+  const linePath=pts.map((p,i)=>(i===0?'M':'L')+p.x.toFixed(1)+','+p.y.toFixed(1)).join(' ');
+  const areaPath=linePath+` L${pts[pts.length-1].x.toFixed(1)},${padT+innerH} L${pts[0].x.toFixed(1)},${padT+innerH} Z`;
+  const gridLines=[0,25,50,75,100].map(v=>{
+    const y=padT+innerH-(v/100)*innerH;
+    return `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="var(--rule)" stroke-width="1"></line><text x="2" y="${y+3}" fill="var(--dim)" font-family="JetBrains Mono, monospace" font-size="7">${v}</text>`;
+  }).join('');
+  const dots=pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="var(--gold2)" stroke="var(--carbon)" stroke-width="1.5"></circle>`).join('');
+  const labels=pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-6}" text-anchor="middle" fill="var(--dim)" font-family="JetBrains Mono, monospace" font-size="7">${p.label}</text>`).join('');
+  const svg=`<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="xMidYMid meet">
+    <defs><linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(212,168,67,.35)"/><stop offset="100%" stop-color="rgba(212,168,67,0)"/></linearGradient></defs>
+    ${gridLines}
+    <path d="${areaPath}" fill="url(#lineGrad)"></path>
+    <path d="${linePath}" fill="none" stroke="var(--gold)" stroke-width="2"></path>
+    ${dots}${labels}
+  </svg>`;
+  document.getElementById(containerId).innerHTML=svg;
 }
 
 /* ═══ STUDENT DASHBOARD ═══ */
@@ -1016,7 +1282,7 @@ function enterStudent(){
   document.getElementById('stuCls').textContent='Class '+s.class;
   document.getElementById('stuRoll').textContent=s.roll;
   document.getElementById('stuGreet').textContent=greeting()+', '+s.name.split(' ')[0]+'!';
-  renderStuOverview();renderStuAsg();renderStuHw();renderStuCW();renderStuTests();renderStuExams();renderStuAtt();renderStuFees();renderStuCanteen();renderStuLib();renderStuTeachers();renderStuProfile();
+  renderStuOverview();renderStuAsg();renderStuHw();renderStuCW();renderStuTests();renderStuExams();renderStuAtt();renderStuFees();renderStuCanteen();renderStuLib();renderStuTeachers();renderStuComplaints();renderStuProfile();
   const pend=ASSIGNMENTS.filter(a=>a.classes.includes(s.class)&&new Date(a.due)>=new Date()).length;
   if(pend){document.getElementById('asgBadge').style.display='';document.getElementById('asgBadge').textContent=pend;}
   showS('overview',document.querySelector('#stuSB .sb-item'));
@@ -1048,19 +1314,49 @@ function renderStuOverview(){
   const now=new Date();
   document.getElementById('ovAsgTable').innerHTML=myAsg.filter(a=>new Date(a.due)>=now).slice(0,3).map(a=>`<tr><td><span class="bd bi">${a.subject}</span></td><td>${a.title}</td><td>${fd(a.due)}</td></tr>`).join('')||emptyRow(3,'No pending assignments');
   document.getElementById('ovHwTable').innerHTML=myHw.filter(h=>new Date(h.due)>=now).slice(0,3).map(h=>`<tr><td><span class="bd bg">${h.subject}</span></td><td>${h.title}</td><td>${fd(h.due)}</td></tr>`).join('')||emptyRow(3,'No pending homework');
+
+  // ── Work completion pie (uses real per-student status: done/auto counts as complete) ──
+  const totalWork=myAsg.length+myHw.length;
+  const doneWork=myAsg.filter(a=>{const st=resolveWorkStatus(a,s._id,'due');return st.key==='done'||st.key==='auto';}).length
+    +myHw.filter(h=>{const st=resolveWorkStatus(h,s._id,'due');return st.key==='done'||st.key==='auto';}).length;
+  const incompleteWork=myAsg.filter(a=>resolveWorkStatus(a,s._id,'due').key==='incomplete').length
+    +myHw.filter(h=>resolveWorkStatus(h,s._id,'due').key==='incomplete').length;
+  const pendingWork=Math.max(totalWork-doneWork-incompleteWork,0);
+  renderPieChart('stuWorkPie',[
+    {label:'Completed',value:doneWork,color:'#22c55e'},
+    {label:'Pending',value:pendingWork,color:'#f59e0b'},
+    {label:'Incomplete',value:incompleteWork,color:'#ef4444'}
+  ],'DONE');
+
+  // ── Attendance pie ──
+  renderPieChart('stuAttPie',[
+    {label:'Present',value:totP,color:'#22c55e'},
+    {label:'Absent',value:totA,color:'#ef4444'}
+  ],'PRESENT');
+
+  // ── Academic performance line (tests + exam, chronological) ──
+  const perfPoints=[];
+  TESTS.filter(t=>t.classes.includes(s.class)&&t.marks&&t.marks[s._id]!=null).sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(t=>{
+    perfPoints.push({label:t.subject.slice(0,3),value:Math.round(t.marks[s._id]/t.maxMarks*100)});
+  });
+  const ex=EXAMS[s._id];
+  if(ex){
+    Object.entries(ex.marks).forEach(([sub,m])=>perfPoints.push({label:sub.slice(0,3),value:m}));
+  }
+  renderLineChart('stuPerfLine',perfPoints);
 }
 
 function renderStuAsg(){
-  const myAsg=ASSIGNMENTS.filter(a=>a.classes.includes(user.class));const now=new Date();
-  document.getElementById('stuAsgTable').innerHTML=myAsg.map(a=>{const past=new Date(a.due)<now;return`<tr><td><span class="bd bi">${a.subject}</span></td><td><strong>${a.title}</strong></td><td style="font-size:11px;color:var(--dim);max-width:180px">${a.desc||'—'}</td><td>${fd(a.issued)}</td><td>${fd(a.due)}</td><td><span class="bd ${past?'bx':'bw'}">${past?'Past Due':'Pending'}</span></td></tr>`;}).join('')||emptyRow(6,'No assignments found');
+  const myAsg=ASSIGNMENTS.filter(a=>a.classes.includes(user.class));
+  document.getElementById('stuAsgTable').innerHTML=myAsg.map(a=>{const st=resolveWorkStatus(a,user._id,'due');return`<tr><td><span class="bd bi">${a.subject}</span></td><td><strong>${a.title}</strong></td><td style="font-size:11px;color:var(--dim);max-width:180px">${a.desc||'—'}</td><td>${fd(a.issued)}</td><td>${fd(a.due)}</td><td><span class="bd ${st.cls}">${st.label}</span></td></tr>`;}).join('')||emptyRow(6,'No assignments found');
 }
 function renderStuHw(){
-  const myHw=HOMEWORK.filter(h=>h.classes.includes(user.class));const now=new Date();
-  document.getElementById('stuHwTable').innerHTML=myHw.map(h=>{const past=new Date(h.due)<now;return`<tr><td><span class="bd bg">${h.subject}</span></td><td><strong>${h.title}</strong></td><td style="font-size:11px;color:var(--dim)">${h.desc||'—'}</td><td>${fd(h.issued)}</td><td>${fd(h.due)}</td><td><span class="bd ${past?'bx':'bw'}">${past?'Past':'Pending'}</span></td></tr>`;}).join('')||emptyRow(6,'No homework found');
+  const myHw=HOMEWORK.filter(h=>h.classes.includes(user.class));
+  document.getElementById('stuHwTable').innerHTML=myHw.map(h=>{const st=resolveWorkStatus(h,user._id,'due');return`<tr><td><span class="bd bg">${h.subject}</span></td><td><strong>${h.title}</strong></td><td style="font-size:11px;color:var(--dim)">${h.desc||'—'}</td><td>${fd(h.issued)}</td><td>${fd(h.due)}</td><td><span class="bd ${st.cls}">${st.label}</span></td></tr>`;}).join('')||emptyRow(6,'No homework found');
 }
 function renderStuCW(){
   const myCW=CLASSWORK.filter(c=>c.class===user.class);
-  document.getElementById('stuCWContent').innerHTML=myCW.length?myCW.map(c=>`<div class="icard"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div><div class="ic-t">${c.topic}</div><div style="display:flex;gap:8px;margin-top:6px"><span class="bd bi">${c.subject}</span><span class="bd bx">${c.class}</span></div></div><div style="font-family:var(--fm);font-size:9px;color:var(--dim)">${fd(c.date)}</div></div>${c.notes?`<p style="font-size:12.5px;color:var(--silver);line-height:1.6">${c.notes}</p>`:''}</div>`).join(''):'<div class="icard"><p style="color:var(--dim);text-align:center;padding:20px;font-family:var(--fm);font-size:11px">No classwork entries found</p></div>';
+  document.getElementById('stuCWContent').innerHTML=myCW.length?myCW.map(c=>{const st=resolveWorkStatus(c,user._id,'date');return`<div class="icard"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px"><div><div class="ic-t">${c.topic}</div><div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"><span class="bd bi">${c.subject}</span><span class="bd bx">${c.class}</span><span class="bd ${st.cls}">${st.label}</span></div></div><div style="font-family:var(--fm);font-size:9px;color:var(--dim)">${fd(c.date)}</div></div>${c.notes?`<p style="font-size:12.5px;color:var(--silver);line-height:1.6">${c.notes}</p>`:''}</div>`;}).join(''):'<div class="icard"><p style="color:var(--dim);text-align:center;padding:20px;font-family:var(--fm);font-size:11px">No classwork entries found</p></div>';
 }
 function renderStuTests(){
   const myT=TESTS.filter(t=>t.classes.includes(user.class));
@@ -1073,7 +1369,7 @@ function renderStuExams(){
   const ex=EXAMS[user._id];
   if(!ex){document.getElementById('stuExamContent').innerHTML='<div class="icard"><p style="color:var(--dim);text-align:center;padding:24px;font-family:var(--fm);font-size:11px">No exam results published yet.</p></div>';return;}
   const subs=Object.entries(ex.marks);const tot=subs.reduce((a,b)=>a+b[1],0);const max=subs.length*100;
-  document.getElementById('stuExamContent').innerHTML=`<div class="icard" style="border-top:2px solid var(--gold)"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><div class="ic-t">${ex.name}</div><div class="ic-s">${user.class} · Mark Sheet</div></div><div style="text-align:right"><div style="font-family:var(--fm);font-size:24px;font-weight:600;color:var(--gold)">${tot}<span style="font-size:13px;color:var(--dim)">/${max}</span></div><div style="font-family:var(--fm);font-size:9px;color:var(--dim)">${Math.round(tot/max*100)}% Overall · ${getGrade(Math.round(tot/max*100))}</div></div></div><div class="twrap" style="margin:0"><table><thead><tr><th>Subject</th><th>Max</th><th>Obtained</th><th>%</th><th>Grade</th></tr></thead><tbody>${subs.map(([sub,marks])=>{const pct=marks;return`<tr><td>${sub}</td><td>100</td><td style="font-family:var(--fm);font-weight:600">${marks}</td><td>${pct}%</td><td style="color:${pct>=75?'var(--ok)':pct>=60?'var(--info)':pct>=45?'var(--warn)':'var(--bad)'};font-family:var(--fm);font-weight:600">${getGrade(pct)}</td></tr>`;}).join('')}</tbody></table></div></div>`;
+  document.getElementById('stuExamContent').innerHTML=`<div class="icard" style="border-top:2px solid var(--gold)"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:10px"><div><div class="ic-t">${ex.name}</div><div class="ic-s">${user.class} · Mark Sheet</div></div><div style="text-align:right"><div style="font-family:var(--fm);font-size:24px;font-weight:600;color:var(--gold)">${tot}<span style="font-size:13px;color:var(--dim)">/${max}</span></div><div style="font-family:var(--fm);font-size:9px;color:var(--dim)">${Math.round(tot/max*100)}% Overall · ${getGrade(Math.round(tot/max*100))}</div></div></div><div class="twrap" style="margin:0"><div class="tscroll"><table><thead><tr><th>Subject</th><th>Max</th><th>Obtained</th><th>%</th><th>Grade</th></tr></thead><tbody>${subs.map(([sub,marks])=>{const pct=marks;return`<tr><td>${sub}</td><td>100</td><td style="font-family:var(--fm);font-weight:600">${marks}</td><td>${pct}%</td><td style="color:${pct>=75?'var(--ok)':pct>=60?'var(--info)':pct>=45?'var(--warn)':'var(--bad)'};font-family:var(--fm);font-weight:600">${getGrade(pct)}</td></tr>`;}).join('')}</tbody></table></div></div></div>`;
 }
 function renderStuAtt(){
   const att=ATTENDANCE[user._id]||{};const vals=Object.values(att);
@@ -1100,9 +1396,9 @@ function renderStuFees(){
   const totalPend=entries.filter(e=>e.status==='pending').reduce((a,b)=>a+b.amount,0);
   document.getElementById('stuFeeContent').innerHTML=
     `<div class="sgrid">${statCard('ok','✅',paid,'Months Paid','₹'+totalPaid.toLocaleString('en-IN')+' total')+(pend>0?statCard('bad','⏳',pend,'Months Pending','₹'+totalPend.toLocaleString('en-IN')+' due'):statCard('ok','🎉','All','Fees Clear',''))}</div>`+
-    `<div class="twrap"><div class="thead"><div class="tt">Payment History</div></div><table><thead><tr><th>Month</th><th>Amount</th><th>Status</th></tr></thead><tbody>`+
+    `<div class="twrap"><div class="thead"><div class="tt">Payment History</div></div><div class="tscroll"><table><thead><tr><th>Month</th><th>Amount</th><th>Status</th></tr></thead><tbody>`+
     entries.map(e=>`<tr><td>${e.month.replace(/(\d{4})/,' $1')}</td><td style="font-family:var(--fm);color:var(--gold2)">₹${e.amount.toLocaleString('en-IN')}</td><td><span class="bd ${e.status==='paid'?'bk':'bb'}">${e.status}</span></td></tr>`).join('')+
-    '</tbody></table></div>';
+    '</tbody></table></div></div>';
 }
 function renderStuCanteen(){
   const s=user;
@@ -1113,18 +1409,37 @@ function renderStuLib(){
   document.getElementById('stuLibContent').innerHTML=s.libraryBook?`<div class="lib-book"><div class="lib-icon">📖</div><div class="lib-info"><div class="lib-title">${s.libraryBook}</div><div class="lib-due">Return Due: <strong style="color:var(--warn)">${fd(s.libraryDue)}</strong>${new Date(s.libraryDue)<new Date()?' <span class="bd bb" style="font-size:8px;margin-left:6px">OVERDUE</span>':''}</div></div></div><div class="icard"><div class="ic-t">Library Rules</div><div style="font-size:13px;color:var(--silver);line-height:1.8"><p>• Books must be returned within 14 days of issue.</p><p>• Fine of ₹2 per day for overdue books.</p></div></div>`:`<div class="icard"><div style="text-align:center;padding:24px"><div style="font-size:40px;margin-bottom:12px">📚</div><div style="font-size:14px;color:var(--silver)">No book currently issued</div><div style="font-family:var(--fm);font-size:10px;color:var(--dim);margin-top:6px;letter-spacing:1px">Contact your teacher to issue a book</div></div></div>`;
 }
 function renderStuTeachers(){
-  document.getElementById('stuTchContent').innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">'+Object.values(TEACHERS).map(t=>{const init=t.name.replace(/Mrs?\.|Mr\./g,'').trim().split(' ').map(n=>n[0]).join('').slice(0,2);return`<div class="icard"><div style="display:flex;align-items:center;gap:14px;margin-bottom:14px"><div style="width:48px;height:48px;background:var(--graphite);border:1px solid var(--gold-ln);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--gold);font-family:var(--fm);border-radius:16px">${init}</div><div><div style="font-size:14px;font-weight:600">${t.name}</div><div style="font-family:var(--fm);font-size:9px;color:var(--dim);margin-top:2px">${t.subject}</div></div></div><div class="pgrid" style="grid-template-columns:1fr"><div class="pfield"><div class="pfl">Class Teacher</div><div class="pfv">Class ${t.class}</div></div><div class="pfield"><div class="pfl">Contact</div><div class="pfv"><a href="tel:${t.phone}" style="color:var(--gold);text-decoration:none">${t.phone}</a></div></div></div></div>`;}).join('')+'</div>';
+  document.getElementById('stuTchContent').innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">'+Object.values(TEACHERS).map(t=>{const init=t.name.replace(/Mrs?\.|Mr\./g,'').trim().split(' ').map(n=>n[0]).join('').slice(0,2);return`<div class="icard"><div style="display:flex;align-items:center;gap:14px;margin-bottom:14px"><div style="width:48px;height:48px;background:var(--graphite);border:1px solid var(--gold-ln);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--gold);font-family:var(--fm);border-radius:16px">${init}</div><div><div style="font-size:14px;font-weight:600">${t.name}</div><div style="font-family:var(--fm);font-size:9px;color:var(--dim);margin-top:2px">${t.subject} Faculty</div></div></div><div class="pgrid" style="grid-template-columns:1fr"><div class="pfield"><div class="pfl">Subject Taught</div><div class="pfv">${t.subject}</div></div><div class="pfield"><div class="pfl">Class Teacher</div><div class="pfv">Class ${t.class}</div></div><div class="pfield"><div class="pfl">Contact</div><div class="pfv"><a href="tel:${t.phone}" style="color:var(--gold);text-decoration:none">${t.phone}</a></div></div></div></div>`;}).join('')+'</div>';
 }
 function renderStuProfile(){
   const s=user;const init=s.name.split(' ').map(n=>n[0]).join('').slice(0,2);
   document.getElementById('stuProfContent').innerHTML=`<div class="icard"><div style="display:flex;align-items:center;gap:16px;margin-bottom:18px"><div style="width:64px;height:64px;border:1px solid var(--gold);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--gold);font-family:var(--fm);border-radius:20px">${init}</div><div><div style="font-size:20px;font-weight:700">${s.name}</div><div style="font-family:var(--fm);font-size:9px;color:var(--dim);margin-top:4px;letter-spacing:2px">${s.roll} · CLASS ${s.class}</div></div></div><div class="pgrid">${pf('Class',s.class)+pf('Roll Number',s.roll)+pf('Parent / Guardian',s.parent)+pf('Parent Phone',s.phone)+pf('Transport',s.transport)+pf('Bus Route',s.bus||'N/A')}</div><div class="pfield" style="margin-top:6px"><div class="pfl">Address</div><div class="pfv">${s.address||'—'}</div></div></div>`;
 }
 function pf(l,v){return`<div class="pfield"><div class="pfl">${l}</div><div class="pfv">${v||'—'}</div></div>`;}
-function showS(panel,el,isMob){
+function showS(panel,el){
   document.querySelectorAll('#studentPage .panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('s-'+panel).classList.add('on');
-  if(!isMob){document.querySelectorAll('#stuSB .sb-item').forEach(l=>l.classList.remove('on'));if(el)el.classList.add('on');}
-  else{document.querySelectorAll('#stuMobNav .mn-item').forEach(l=>l.classList.remove('on'));if(el)el.classList.add('on');}
+  document.querySelectorAll('#stuSB .sb-item').forEach(l=>l.classList.remove('on'));if(el)el.classList.add('on');
+  closeSidebar('stu');
+}
+
+/* ── Student-side complaints ── */
+function stuSubmitComplaint(){
+  const cat=document.getElementById('stuCmpCat').value;const subj=document.getElementById('stuCmpSubj').value.trim();const detail=document.getElementById('stuCmpDetail').value.trim();
+  if(!subj||!detail){showToast('Fill all fields.','e');return;}
+  const s=user;
+  const obj={id:'CMP'+Date.now(),student:s.name,studentId:s._id,class:s.class,category:cat,subject:subj,detail,date:toS(),by:s.name,source:'student',reply:'',replyDate:''};
+  COMPLAINTS.unshift(obj);
+  if(window._firebaseReady)window._push(window._ref(window._db,'complaints'),obj).catch(()=>{});
+  ['stuCmpSubj','stuCmpDetail'].forEach(i=>document.getElementById(i).value='');
+  renderStuComplaints();showToast('Complaint submitted to your teachers.','s');
+}
+function renderStuComplaints(){
+  if(!user||role!=='student')return;
+  const mine=COMPLAINTS.filter(c=>c.studentId===user._id||c.student===user.name);
+  const list=document.getElementById('stuComplaintsList');
+  if(!list)return;
+  list.innerHTML=mine.length?mine.map(c=>`<div class="complaint-row"><div class="cmp-ic">📣</div><div class="cmp-info"><div class="cmp-title">${c.subject}</div><div style="display:flex;gap:6px;margin:5px 0"><span class="bd bp">${c.category}</span></div><div class="cmp-sub">${c.detail}</div>${c.reply?`<div class="cmp-reply"><div class="cmp-reply-lbl">Teacher Reply · ${fd(c.replyDate)}</div>${c.reply}</div>`:'<div style="font-family:var(--fm);font-size:9px;color:var(--dim);margin-top:8px">Awaiting response…</div>'}</div><div class="cmp-date">${fd(c.date)}</div></div>`).join(''):'<div class="icard"><p style="text-align:center;color:var(--dim);padding:20px;font-family:var(--fm);font-size:11px">No complaints submitted yet.</p></div>';
 }
 
 /* ═══ TEACHER DASHBOARD ═══ */
@@ -1134,13 +1449,13 @@ function enterTeacher(){
   document.getElementById('tchNamePill').textContent=user.name.split(' ').slice(0,2).join(' ');
   document.getElementById('tchGreet').textContent=greeting()+', '+user.name.split(' ').slice(-1)[0]+'!';
   populateSelects();buildChips('asgChips');buildChips('hwChips');buildChips('testChips');
-  renderTchOverview();renderStuTable();renderTchAsgTable();renderTchHwTable();renderCwTable();renderTchTestTable();renderFees();renderLib();renderCant();renderComplaints();
+  renderTchOverview();renderStuTable();renderTchAsgTable();renderTchHwTable();renderCwTable();renderTchTestTable();renderFees();renderLib();renderCant();renderComplaints();renderStaffTable();
   document.getElementById('attDate').value=new Date().toISOString().slice(0,10);
   showT('overview',document.querySelector('#tchSB .sb-item'));
 }
 
 function populateSelects(){
-  const ids=['attCls','stuFiltCls','examCls','cwCls','moveToClass','sCls','newFeeCls'];
+  const ids=['attCls','stuFiltCls','examCls','cwCls','moveToClass','sCls','newFeeCls','tCls'];
   ids.forEach(id=>{const el=document.getElementById(id);if(!el)return;while(el.options.length>1)el.remove(1);CLASSES.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent='Class '+c;el.appendChild(o);});});
   ['libStu','cantStu','cmpStu'].forEach(id=>{const el=document.getElementById(id);if(!el)return;el.innerHTML='<option value="">— Select Student —</option>';Object.entries(STUDENTS).forEach(([k,s])=>{const o=document.createElement('option');o.value=k;o.textContent=s.name+' ('+s.class+')';el.appendChild(o);});});
   const feeMonthEl=document.getElementById('feeFiltMonth');
@@ -1157,6 +1472,98 @@ function populateSelects(){
 function buildChips(id){document.getElementById(id).innerHTML=CLASSES.map(c=>`<div class="chip" data-c="${c}" onclick="this.classList.toggle('on')">${c}</div>`).join('');}
 function getChips(id){return Array.from(document.querySelectorAll('#'+id+' .chip.on')).map(c=>c.dataset.c);}
 
+/* ── Fee collection aggregation, used by both bar charts on Overview + Fees ── */
+function getFeeMonthlyTotals(){
+  const months={};
+  Object.values(STUDENTS).forEach(s=>{
+    getFeeEntries(s).forEach(e=>{
+      if(!months[e.month])months[e.month]={collected:0,pending:0};
+      if(e.status==='paid')months[e.month].collected+=e.amount;
+      else months[e.month].pending+=e.amount;
+    });
+  });
+  return Object.entries(months).sort((a,b)=>{
+    // best-effort chronological sort by parsing trailing year + rough month order
+    return a[0].localeCompare(b[0]);
+  });
+}
+
+/* ── Low-performer / at-risk detection for Overview alert panel ── */
+function computeRiskStudents(){
+  const now=new Date();
+  const oneWeekAgo=new Date(now.getTime()-7*86400000);
+  const twoWeeksAgo=new Date(now.getTime()-14*86400000);
+  const risks=[];
+  Object.entries(STUDENTS).forEach(([k,s])=>{
+    const tags=[];
+    // Fees pending
+    if(getFeeStatusForStudent(s))tags.push('Fees Pending');
+    // Homework not done — explicit "Incomplete", or still unresolved 1-2 weeks past due
+    const myHw=HOMEWORK.filter(h=>h.classes.includes(s.class));
+    const hwIncomplete=myHw.filter(h=>resolveWorkStatus(h,k,'due').key==='incomplete');
+    const hwOverdue1wk=myHw.filter(h=>{
+      const st=resolveWorkStatus(h,k,'due');
+      return(st.key==='pending')&&new Date(h.due)<=oneWeekAgo;
+    });
+    const hwOverdue2wk=myHw.filter(h=>{
+      const st=resolveWorkStatus(h,k,'due');
+      return(st.key==='pending')&&new Date(h.due)<=twoWeeksAgo;
+    });
+    if(hwIncomplete.length)tags.push('Homework Incomplete ('+hwIncomplete.length+')');
+    if(hwOverdue2wk.length)tags.push('Homework 2+ wks overdue');
+    else if(hwOverdue1wk.length)tags.push('Homework 1+ wk overdue');
+    // Assignments not done — same logic
+    const myAsg=ASSIGNMENTS.filter(a=>a.classes.includes(s.class));
+    const asgIncomplete=myAsg.filter(a=>resolveWorkStatus(a,k,'due').key==='incomplete');
+    const asgOverdue1wk=myAsg.filter(a=>{
+      const st=resolveWorkStatus(a,k,'due');
+      return(st.key==='pending')&&new Date(a.due)<=oneWeekAgo;
+    });
+    const asgOverdue2wk=myAsg.filter(a=>{
+      const st=resolveWorkStatus(a,k,'due');
+      return(st.key==='pending')&&new Date(a.due)<=twoWeeksAgo;
+    });
+    if(asgIncomplete.length)tags.push('Assignment Incomplete ('+asgIncomplete.length+')');
+    if(asgOverdue2wk.length)tags.push('Assignment 2+ wks overdue');
+    else if(asgOverdue1wk.length)tags.push('Assignment 1+ wk overdue');
+    // Low test marks (<45%)
+    const myTests=TESTS.filter(t=>t.classes.includes(s.class)&&t.marks&&t.marks[k]!=null);
+    const lowTests=myTests.filter(t=>(t.marks[k]/t.maxMarks*100)<45);
+    if(lowTests.length)tags.push('Low Test Score ('+lowTests.length+')');
+    // Low exam performance (<45%)
+    const ex=EXAMS[k];
+    if(ex){
+      const vals=Object.values(ex.marks);
+      const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:100;
+      if(avg<45)tags.push('Low Exam Avg ('+Math.round(avg)+'%)');
+    }
+    // Low attendance (<75%)
+    const attVals=Object.values(ATTENDANCE[k]||{});
+    if(attVals.length>=3){
+      const p=attVals.filter(v=>v==='P').length;
+      const pct=Math.round(p/attVals.length*100);
+      if(pct<75)tags.push('Low Attendance ('+pct+'%)');
+    }
+    if(tags.length)risks.push({id:k,name:s.name,cls:s.class,tags});
+  });
+  return risks.sort((a,b)=>b.tags.length-a.tags.length);
+}
+
+function renderRiskAlert(){
+  const risks=computeRiskStudents();
+  const wrap=document.getElementById('riskAlertWrap');
+  if(!wrap)return;
+  if(!risks.length){
+    wrap.innerHTML=`<div class="alert-card" style="border-color:var(--ok-ln);background:var(--ok-dim)"><div class="no-risk">✅ No at-risk students right now — fees, homework, assignments, tests and attendance all look healthy.</div></div>`;
+    return;
+  }
+  wrap.innerHTML=`<div class="alert-card">
+    <div class="alert-hd"><div class="alert-title">⚠️ Students Needing Attention</div><div class="alert-count">${risks.length}</div></div>
+    ${risks.slice(0,12).map(r=>`<div class="risk-row"><div class="risk-name">${r.name} <span style="color:var(--dim);font-weight:400">· ${r.cls}</span></div><div class="risk-tags">${r.tags.map(t=>`<span class="risk-tag">${t}</span>`).join('')}</div></div>`).join('')}
+    ${risks.length>12?`<div style="font-family:var(--fm);font-size:9px;color:var(--dim);padding:8px 10px">+ ${risks.length-12} more</div>`:''}
+  </div>`;
+}
+
 function renderTchOverview(){
   const today=new Date().toISOString().slice(0,10);const stuList=Object.values(STUDENTS);
   let todayP=0,todayA=0;
@@ -1166,13 +1573,26 @@ function renderTchOverview(){
   stuList.forEach(s=>{if(byCls[s.class])byCls[s.class].t++;});
   Object.entries(ATTENDANCE).forEach(([sid,rec])=>{const s=STUDENTS[sid];if(!s||!byCls[s.class])return;if(rec[today]==='P')byCls[s.class].p++;if(rec[today])byCls[s.class].marked=true;});
   document.getElementById('tchAttSum').innerHTML=CLASSES.filter(c=>byCls[c].t>0).map(c=>{const d=byCls[c];const pct=d.t>0?Math.round(d.p/d.t*100):0;return`<tr><td>Class ${c}</td><td style="color:var(--ok)">${d.p}</td><td style="color:var(--bad)">${d.t-d.p}</td><td>${d.t}</td><td><span class="bd ${pct>=75?'bk':'bb'}">${pct}%</span></td><td><span class="bd ${d.marked?'bk':'bx'}">${d.marked?'Done':'Pending'}</span></td></tr>`;}).join('')||emptyRow(6,'No attendance data');
+
+  renderRiskAlert();
+
+  const monthlyTotals=getFeeMonthlyTotals();
+  const bars=[];
+  monthlyTotals.forEach(([m,v])=>{
+    bars.push({label:m.replace(/[0-9]/g,'').slice(0,3),value:v.collected});
+  });
+  if(bars.length){
+    renderBarChart('tchFeeBar',bars,{prefix:'₹'});
+  } else {
+    document.getElementById('tchFeeBar').innerHTML='<p style="color:var(--dim);font-family:var(--fm);font-size:11px;padding:20px 0;text-align:center;width:100%">No fee data yet.</p>';
+  }
 }
 
 function renderStuTable(){
   const cls=document.getElementById('stuFiltCls').value;const q=(document.getElementById('stuSearchQ').value||'').toLowerCase();
   let list=Object.entries(STUDENTS);if(cls)list=list.filter(([,s])=>s.class===cls);if(q)list=list.filter(([,s])=>s.name.toLowerCase().includes(q)||s.roll.toLowerCase().includes(q));
   document.getElementById('stuTblTitle').textContent=(cls?'Class '+cls:'All Students')+' ('+list.length+')';
-  document.getElementById('tchStuTable').innerHTML=list.map(([k,s])=>`<tr><td style="font-family:var(--fm);font-size:10px;color:var(--dim)">${s.roll}</td><td><strong>${s.name}</strong></td><td><span class="bd bx">${s.class}</span></td><td style="font-family:var(--fm);font-size:11px;color:var(--dim)">${s.phone}</td><td><span class="bd ${getFeeStatusForStudent(s)?'bb':'bk'}">${getFeeStatusForStudent(s)?'Pending':'Paid'}</span></td><td style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openEditStu('${k}')">Edit</button> <button class="btn btn-info btn-sm" onclick="openMoveStu('${k}')">Move</button> <button class="btn btn-bad btn-sm" onclick="removeStu('${k}')">Del</button></td></tr>`).join('')||emptyRow(6,'No students found');
+  document.getElementById('tchStuTable').innerHTML=list.map(([k,s])=>`<tr><td style="font-family:var(--fm);font-size:10px;color:var(--dim)">${s.roll}</td><td><strong>${s.name}</strong></td><td><span class="bd bx">${s.class}</span></td><td style="font-family:var(--fm);font-size:11px;color:var(--dim)">${s.phone}</td><td><span class="bd ${getFeeStatusForStudent(s)?'bb':'bk'}">${getFeeStatusForStudent(s)?'Pending':'Paid'}</span></td><td class="col-actions" style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openEditStu('${k}')">Edit</button> <button class="btn btn-info btn-sm" onclick="openMoveStu('${k}')">Move</button> <button class="btn btn-bad btn-sm" onclick="removeStu('${k}')">Del</button></td></tr>`).join('')||emptyRow(6,'No students found');
 }
 
 let attMap={};
@@ -1201,9 +1621,9 @@ function sendAssignment(){
   if(!cls.length||!sub||!title||!due){showToast('Fill all required fields and select at least one class.','e');return;}
   const obj={id:'A'+Date.now(),classes:cls,subject:sub,title,desc,issued:toS(),due,by:user.name};ASSIGNMENTS.unshift(obj);
   if(window._firebaseReady)window._set(window._ref(window._db,'assignments/'+obj.id),obj).catch(()=>{});
-  clearChips('asgChips');['asgSub','asgTitle','asgDue','asgDesc'].forEach(i=>{document.getElementById(i).value='';});renderTchAsgTable();showToast('Assignment issued to '+cls.join(', '),'s');
+  clearChips('asgChips');['asgSub','asgTitle','asgDue','asgDesc'].forEach(i=>{document.getElementById(i).value='';});renderTchAsgTable();renderRiskAlert();showToast('Assignment issued to '+cls.join(', '),'s');
 }
-function renderTchAsgTable(){document.getElementById('tchAsgTable').innerHTML=ASSIGNMENTS.slice(0,20).map(a=>`<tr><td>${a.classes.map(c=>`<span class="bd bx" style="font-size:7px;margin:1px">${c}</span>`).join('')}</td><td><span class="bd bi">${a.subject}</span></td><td>${a.title}</td><td>${fd(a.issued)}</td><td>${fd(a.due)}</td><td><button class="btn btn-bad btn-sm" onclick="delAssignment('${a.id}')">Del</button></td></tr>`).join('')||emptyRow(6,'No assignments');}
+function renderTchAsgTable(){document.getElementById('tchAsgTable').innerHTML=ASSIGNMENTS.slice(0,20).map(a=>`<tr><td>${a.classes.map(c=>`<span class="bd bx" style="font-size:7px;margin:1px">${c}</span>`).join('')}</td><td><span class="bd bi">${a.subject}</span></td><td>${a.title}</td><td>${fd(a.issued)}</td><td>${fd(a.due)}</td><td class="col-actions" style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openWorkStatus('assignments','${a.id}')">Status</button> <button class="btn btn-bad btn-sm" onclick="delAssignment('${a.id}')">Del</button></td></tr>`).join('')||emptyRow(6,'No assignments');}
 function delAssignment(id){ASSIGNMENTS=ASSIGNMENTS.filter(a=>a.id!==id);if(window._firebaseReady)window._remove(window._ref(window._db,'assignments/'+id)).catch(()=>{});renderTchAsgTable();showToast('Deleted.','i');}
 
 function sendHomework(){
@@ -1211,9 +1631,9 @@ function sendHomework(){
   if(!cls.length||!sub||!title||!due){showToast('Fill all required fields.','e');return;}
   const obj={id:'H'+Date.now(),classes:cls,subject:sub,title,desc,issued:toS(),due,by:user.name};HOMEWORK.unshift(obj);
   if(window._firebaseReady)window._set(window._ref(window._db,'homework/'+obj.id),obj).catch(()=>{});
-  clearChips('hwChips');['hwSub','hwTitle','hwDue','hwDesc'].forEach(i=>{document.getElementById(i).value='';});renderTchHwTable();showToast('Homework assigned to '+cls.join(', '),'s');
+  clearChips('hwChips');['hwSub','hwTitle','hwDue','hwDesc'].forEach(i=>{document.getElementById(i).value='';});renderTchHwTable();renderRiskAlert();showToast('Homework assigned to '+cls.join(', '),'s');
 }
-function renderTchHwTable(){document.getElementById('tchHwTable').innerHTML=HOMEWORK.slice(0,20).map(h=>`<tr><td>${h.classes.map(c=>`<span class="bd bx" style="font-size:7px;margin:1px">${c}</span>`).join('')}</td><td><span class="bd bg">${h.subject}</span></td><td>${h.title}</td><td>${fd(h.issued)}</td><td>${fd(h.due)}</td><td><button class="btn btn-bad btn-sm" onclick="delHw('${h.id}')">Del</button></td></tr>`).join('')||emptyRow(6,'No homework');}
+function renderTchHwTable(){document.getElementById('tchHwTable').innerHTML=HOMEWORK.slice(0,20).map(h=>`<tr><td>${h.classes.map(c=>`<span class="bd bx" style="font-size:7px;margin:1px">${c}</span>`).join('')}</td><td><span class="bd bg">${h.subject}</span></td><td>${h.title}</td><td>${fd(h.issued)}</td><td>${fd(h.due)}</td><td class="col-actions" style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openWorkStatus('homework','${h.id}')">Status</button> <button class="btn btn-bad btn-sm" onclick="delHw('${h.id}')">Del</button></td></tr>`).join('')||emptyRow(6,'No homework');}
 function delHw(id){HOMEWORK=HOMEWORK.filter(h=>h.id!==id);if(window._firebaseReady)window._remove(window._ref(window._db,'homework/'+id)).catch(()=>{});renderTchHwTable();showToast('Deleted.','i');}
 
 function saveClasswork(){
@@ -1223,7 +1643,7 @@ function saveClasswork(){
   if(window._firebaseReady)window._set(window._ref(window._db,'classwork/'+obj.id),obj).catch(()=>{});
   ['cwSub','cwTopic','cwNotes'].forEach(i=>{document.getElementById(i).value='';});renderCwTable();showToast('Classwork saved.','s');
 }
-function renderCwTable(){document.getElementById('cwTable').innerHTML=CLASSWORK.slice(0,20).map(c=>`<tr><td><span class="bd bx">${c.class}</span></td><td><span class="bd bi">${c.subject}</span></td><td>${c.topic}</td><td>${fd(c.date)}</td><td style="font-size:11px;color:var(--dim);max-width:180px">${c.notes||'—'}</td><td><button class="btn btn-bad btn-sm" onclick="delCW('${c.id}')">Del</button></td></tr>`).join('')||emptyRow(6,'No classwork entries');}
+function renderCwTable(){document.getElementById('cwTable').innerHTML=CLASSWORK.slice(0,20).map(c=>`<tr><td><span class="bd bx">${c.class}</span></td><td><span class="bd bi">${c.subject}</span></td><td>${c.topic}</td><td>${fd(c.date)}</td><td style="font-size:11px;color:var(--dim);max-width:180px">${c.notes||'—'}</td><td class="col-actions" style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openWorkStatus('classwork','${c.id}')">Status</button> <button class="btn btn-bad btn-sm" onclick="delCW('${c.id}')">Del</button></td></tr>`).join('')||emptyRow(6,'No classwork entries');}
 function delCW(id){CLASSWORK=CLASSWORK.filter(c=>c.id!==id);if(window._firebaseReady)window._remove(window._ref(window._db,'classwork/'+id)).catch(()=>{});renderCwTable();showToast('Deleted.','i');}
 
 function scheduleTest(){
@@ -1235,7 +1655,7 @@ function scheduleTest(){
 }
 function renderTchTestTable(){
   const now=new Date();
-  document.getElementById('tchTestTable').innerHTML=TESTS.map(t=>`<tr><td>${t.classes.map(c=>`<span class="bd bx" style="font-size:7px;margin:1px">${c}</span>`).join('')}</td><td><span class="bd bp">${t.subject}</span></td><td>${t.topic}</td><td>${fd(t.date)}</td><td>${t.maxMarks}</td><td><span class="bd ${new Date(t.date)>=now?'bw':'bk'}">${new Date(t.date)>=now?'Upcoming':'Done'}</span></td><td style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openMarks('${t.id}')">Marks</button> <button class="btn btn-bad btn-sm" onclick="delTest('${t.id}')">Del</button></td></tr>`).join('')||emptyRow(7,'No tests');
+  document.getElementById('tchTestTable').innerHTML=TESTS.map(t=>`<tr><td>${t.classes.map(c=>`<span class="bd bx" style="font-size:7px;margin:1px">${c}</span>`).join('')}</td><td><span class="bd bp">${t.subject}</span></td><td>${t.topic}</td><td>${fd(t.date)}</td><td>${t.maxMarks}</td><td><span class="bd ${new Date(t.date)>=now?'bw':'bk'}">${new Date(t.date)>=now?'Upcoming':'Done'}</span></td><td class="col-actions" style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openMarks('${t.id}')">Marks</button> <button class="btn btn-bad btn-sm" onclick="delTest('${t.id}')">Del</button></td></tr>`).join('')||emptyRow(7,'No tests');
 }
 function openMarks(id){
   currentMarkTestId=id;const t=TESTS.find(x=>x.id===id);if(!t)return;
@@ -1250,7 +1670,7 @@ function saveTestMarks(){
   const t=TESTS.find(x=>x.id===currentMarkTestId);if(!t)return;
   document.querySelectorAll('#marksList .tdi').forEach(inp=>{const v=inp.value.trim();if(v!=='')t.marks[inp.dataset.sid]=parseInt(v);});
   if(window._firebaseReady)window._set(window._ref(window._db,'tests/'+t.id+'/marks'),t.marks).catch(()=>{});
-  document.getElementById('marksPanel').style.display='none';showToast('Test marks saved.','s');
+  document.getElementById('marksPanel').style.display='none';renderRiskAlert();showToast('Test marks saved.','s');
 }
 function delTest(id){TESTS=TESTS.filter(t=>t.id!==id);if(window._firebaseReady)window._remove(window._ref(window._db,'tests/'+id)).catch(()=>{});renderTchTestTable();showToast('Test removed.','i');}
 
@@ -1262,7 +1682,7 @@ function loadExamStudents(){
 function saveExamMarks(){
   const exam=document.getElementById('examSel').value;
   document.querySelectorAll('#examMarksList .tdi').forEach(inp=>{const k=inp.dataset.sid,sub=inp.dataset.sub,v=inp.value.trim();if(v==='')return;if(!EXAMS[k])EXAMS[k]={name:exam,marks:{}};EXAMS[k].marks[sub]=parseInt(v);if(window._firebaseReady)window._set(window._ref(window._db,`exams/${k}/marks/${sub}`),parseInt(v)).catch(()=>{});});
-  showToast('Exam marks saved and published!','s');
+  renderRiskAlert();showToast('Exam marks saved and published!','s');
 }
 
 /* ══ FEE MANAGEMENT ══ */
@@ -1313,9 +1733,14 @@ function renderFees(){
       <td style="font-family:var(--fm);font-size:10px">${r.month.replace(/(\d{4})/,' $1')}</td>
       <td><input type="number" class="fee-amt-input" value="${r.amount}" min="0" data-sid="${r.sid}" data-month="${r.month}" onchange="saveFeeAmount(this)" title="Click to edit fee amount"></td>
       <td><span class="bd ${r.status==='paid'?'bk':'bb'}">${r.status}</span></td>
-      <td><button class="btn btn-sm ${r.status==='paid'?'btn-g':'btn-ok'}" onclick="toggleFee('${r.sid}','${r.month}')">${r.status==='paid'?'Mark Pending':'Mark Paid'}</button></td>
+      <td class="col-actions"><button class="btn btn-sm ${r.status==='paid'?'btn-g':'btn-ok'}" onclick="toggleFee('${r.sid}','${r.month}')">${r.status==='paid'?'Mark Pending':'Mark Paid'}</button></td>
     </tr>`
   ).join('')||emptyRow(7,'No fee records found');
+
+  const monthlyTotals=getFeeMonthlyTotals();
+  const bars=monthlyTotals.map(([m,v])=>({label:m.replace(/[0-9]/g,'').slice(0,3),value:v.collected}));
+  if(bars.length){renderBarChart('tchFeeBar2',bars,{prefix:'₹'});}
+  else{const el=document.getElementById('tchFeeBar2');if(el)el.innerHTML='<p style="color:var(--dim);font-family:var(--fm);font-size:11px;padding:20px 0;text-align:center;width:100%">No fee data yet.</p>';}
 }
 
 function saveFeeAmount(inp){
@@ -1335,13 +1760,13 @@ function toggleFee(sid,month){
   if(typeof entry==='object'){s.feesStatus[month].status=newStatus;}
   else{s.feesStatus[month]={status:newStatus,amount:2500};}
   if(window._firebaseReady)window._set(window._ref(window._db,`students/${sid}/feesStatus/${month}/status`),newStatus).catch(()=>{});
-  renderFees();showToast('Fee status → '+newStatus,'s');
+  renderFees();renderRiskAlert();showToast('Fee status → '+newStatus,'s');
 }
 function toggleFeeAll(){const ck=document.getElementById('feeChkAll').checked;document.querySelectorAll('.fee-chk').forEach(c=>c.checked=ck);}
 function markSelPaid(){
   const sel=Array.from(document.querySelectorAll('.fee-chk:checked'));if(!sel.length){showToast('Select entries first.','e');return;}
   sel.forEach(c=>{const k=c.dataset.sid,m=c.dataset.month;const entry=STUDENTS[k].feesStatus[m];if(typeof entry==='object'){STUDENTS[k].feesStatus[m].status='paid';}else{STUDENTS[k].feesStatus[m]={status:'paid',amount:2500};}if(window._firebaseReady)window._set(window._ref(window._db,`students/${k}/feesStatus/${m}/status`),'paid').catch(()=>{});});
-  renderFees();showToast(sel.length+' entries marked paid.','s');
+  renderFees();renderRiskAlert();showToast(sel.length+' entries marked paid.','s');
 }
 
 function renderLib(){
@@ -1370,14 +1795,35 @@ function addCanteenBalance(){
   renderCant();document.getElementById('cantAmt').value='';showToast('₹'+amt+' added to '+STUDENTS[k].name+' canteen account.','s');
 }
 
+/* ── Teacher-side complaints — now includes replies + student-submitted entries ── */
 function submitComplaint(){
   const sid=document.getElementById('cmpStu').value;const cat=document.getElementById('cmpCat').value;const subj=document.getElementById('cmpSubj').value.trim();const detail=document.getElementById('cmpDetail').value.trim();
   if(!subj||!detail){showToast('Fill all fields.','e');return;}
-  const obj={id:'CMP'+Date.now(),student:sid?STUDENTS[sid]?.name:'General',class:sid?STUDENTS[sid]?.class:'—',category:cat,subject:subj,detail,date:toS(),by:user.name};COMPLAINTS.unshift(obj);
+  const obj={id:'CMP'+Date.now(),student:sid?STUDENTS[sid]?.name:'General',studentId:sid||'',class:sid?STUDENTS[sid]?.class:'—',category:cat,subject:subj,detail,date:toS(),by:user.name,source:'teacher',reply:'',replyDate:''};COMPLAINTS.unshift(obj);
   if(window._firebaseReady)window._push(window._ref(window._db,'complaints'),obj).catch(()=>{});
   ['cmpSubj','cmpDetail'].forEach(i=>document.getElementById(i).value='');renderComplaints();showToast('Complaint submitted.','s');
 }
-function renderComplaints(){document.getElementById('complaintsList').innerHTML=COMPLAINTS.length?COMPLAINTS.map(c=>`<div class="complaint-row"><div class="cmp-ic">📣</div><div class="cmp-info"><div class="cmp-title">${c.subject}</div><div style="display:flex;gap:6px;margin:5px 0"><span class="bd bp">${c.category}</span>${c.student!=='General'?`<span class="bd bx">${c.student}</span>`:''}</div><div class="cmp-sub">${c.detail}</div></div><div class="cmp-date">${fd(c.date)}</div></div>`).join(''):'<div class="icard"><p style="text-align:center;color:var(--dim);padding:20px;font-family:var(--fm);font-size:11px">No complaints submitted yet.</p></div>';}
+function renderComplaints(){
+  const badge=document.getElementById('cmpBadge');
+  const stuSubmitted=COMPLAINTS.filter(c=>c.source==='student'&&!c.reply).length;
+  if(badge){badge.style.display=stuSubmitted?'':'none';badge.textContent=stuSubmitted;}
+  document.getElementById('complaintsList').innerHTML=COMPLAINTS.length?COMPLAINTS.map(c=>`<div class="complaint-row"><div class="cmp-ic">📣</div><div class="cmp-info"><div class="cmp-title">${c.subject}</div><div style="display:flex;gap:6px;margin:5px 0;flex-wrap:wrap"><span class="bd bp">${c.category}</span>${c.student&&c.student!=='General'?`<span class="bd bx">${c.student}</span>`:''}${c.source==='student'?'<span class="bd bi">From Student</span>':'<span class="bd bg">Staff Note</span>'}</div><div class="cmp-sub">${c.detail}</div>${c.reply?`<div class="cmp-reply"><div class="cmp-reply-lbl">Your Reply · ${fd(c.replyDate)}</div>${c.reply}</div>`:''}</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0"><div class="cmp-date">${fd(c.date)}</div>${c.source==='student'?`<button class="btn btn-g btn-sm" onclick="openReplyModal('${c.id}')">${c.reply?'Edit Reply':'Reply'}</button>`:''}</div></div>`).join(''):'<div class="icard"><p style="text-align:center;color:var(--dim);padding:20px;font-family:var(--fm);font-size:11px">No complaints submitted yet.</p></div>';
+}
+function openReplyModal(id){
+  const c=COMPLAINTS.find(x=>x.id===id);if(!c)return;
+  document.getElementById('replyCmpId').value=id;
+  document.getElementById('replyCmpSub').textContent=c.subject+' — '+(c.student||'General');
+  document.getElementById('replyCmpText').value=c.reply||'';
+  openModal('replyCmpMod');
+}
+function saveComplaintReply(){
+  const id=document.getElementById('replyCmpId').value;const text=document.getElementById('replyCmpText').value.trim();
+  if(!text){showToast('Write a reply first.','e');return;}
+  const c=COMPLAINTS.find(x=>x.id===id);if(!c)return;
+  c.reply=text;c.replyDate=toS();
+  if(window._firebaseReady&&c._fbKey)window._update(window._ref(window._db,'complaints/'+c._fbKey),{reply:text,replyDate:c.replyDate}).catch(()=>{});
+  closeModal('replyCmpMod');renderComplaints();showToast('Reply sent — visible to the student instantly.','s');
+}
 
 /* ══ STUDENT CRUD ══ */
 function openModal(id){document.getElementById(id).classList.add('on');}
@@ -1403,11 +1849,64 @@ function removeStu(k){if(!confirm('Remove student permanently?'))return;delete S
 function openMoveStu(k){const s=STUDENTS[k];document.getElementById('moveStuId').value=k;document.getElementById('moveSub').textContent=s.name+' — currently Class '+s.class;populateSelects();document.getElementById('moveToClass').value=s.class;openModal('moveStuMod');}
 function confirmMove(){const k=document.getElementById('moveStuId').value;const nc=document.getElementById('moveToClass').value;STUDENTS[k].class=nc;if(window._firebaseReady)window._update(window._ref(window._db,'students/'+k),{class:nc}).catch(()=>{});closeModal('moveStuMod');renderStuTable();showToast('Student moved to '+nc,'s');}
 
-function showT(panel,el,isMob){
+/* ══ TEACHER (STAFF) CRUD ══ */
+function saveTeacher(){
+  const rollRaw=document.getElementById('tRoll').value.trim().toUpperCase();
+  const fn=document.getElementById('tFn').value.trim();const sub=document.getElementById('tSub').value;const ph=document.getElementById('tPh').value.trim();const cls=document.getElementById('tCls').value;
+  if(!rollRaw||!fn||!sub||!ph||!cls){showToast('Fill all required fields, including Teacher ID.','e');return;}
+  const eid=document.getElementById('editTchId').value;const old=eid?TEACHERS[eid]:null;
+
+  // Prevent duplicate Teacher IDs (case-insensitive), except when editing the same teacher
+  const clash=Object.entries(TEACHERS).find(([k,t])=>k!==eid&&t.roll.toUpperCase()===rollRaw);
+  if(clash){showToast('That Teacher ID is already in use — pick another.','e');return;}
+
+  const pass=document.getElementById('tPw').value.trim()||old?.pass||('teacher'+Math.floor(100+Math.random()*900));
+  const obj={roll:rollRaw,pass,name:fn,subject:sub,class:cls,phone:ph};
+  const key=eid||('TCH'+Date.now());
+  TEACHERS[key]=obj;
+  if(window._firebaseReady)window._set(window._ref(window._db,'teachers/'+key),obj).catch(()=>{});
+
+  document.getElementById('tchCredsBox').style.display='block';
+  document.getElementById('tchCredsId').textContent=rollRaw;
+  document.getElementById('tchCredsPw').textContent=pass;
+
+  resetTeacherForm();renderStaffTable();renderStuTeachers();renderDemoList();
+  showToast(eid?'Teacher updated.':'Teacher added successfully.','s');
+}
+function renderStaffTable(){
+  const tbl=document.getElementById('tchStaffTable');if(!tbl)return;
+  tbl.innerHTML=Object.entries(TEACHERS).map(([k,t])=>`<tr><td style="font-family:var(--fm);font-size:10px;color:var(--gold2);font-weight:600">${t.roll}</td><td><strong>${t.name}</strong></td><td><span class="bd bi">${t.subject}</span></td><td><span class="bd bx">${t.class}</span></td><td style="font-family:var(--fm);font-size:11px;color:var(--dim)">${t.phone}</td><td style="font-family:var(--fm);font-size:11px;color:var(--dim)">${t.pass||'—'}</td><td class="col-actions" style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openEditTeacher('${k}')">Edit</button> <button class="btn btn-bad btn-sm" onclick="removeTeacher('${k}')">Del</button></td></tr>`).join('')||emptyRow(7,'No teachers found');
+}
+function openEditTeacher(k){
+  const t=TEACHERS[k];if(!t)return;
+  document.getElementById('addTchTitle').textContent='Edit Teacher';
+  document.getElementById('editTchId').value=k;
+  document.getElementById('tRoll').value=t.roll;
+  document.getElementById('tFn').value=t.name;document.getElementById('tSub').value=t.subject;document.getElementById('tPh').value=t.phone;document.getElementById('tPw').value=t.pass||'';
+  populateSelects();document.getElementById('tCls').value=t.class;
+  document.getElementById('tchFormCancelBtn').style.display='';
+  document.getElementById('tchCredsBox').style.display='none';
+  document.getElementById('t-staff').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function resetTeacherForm(){
+  document.getElementById('addTchTitle').textContent='Add Teacher';
+  document.getElementById('editTchId').value='';
+  ['tRoll','tFn','tPh','tPw'].forEach(i=>document.getElementById(i).value='');
+  document.getElementById('tSub').value='';document.getElementById('tCls').value='';
+  document.getElementById('tchFormCancelBtn').style.display='none';
+}
+function removeTeacher(k){
+  if(!confirm('Remove this teacher permanently? Their login will stop working.'))return;
+  delete TEACHERS[k];
+  if(window._firebaseReady)window._remove(window._ref(window._db,'teachers/'+k)).catch(()=>{});
+  renderStaffTable();renderStuTeachers();renderDemoList();showToast('Teacher removed.','i');
+}
+
+function showT(panel,el){
   document.querySelectorAll('#teacherPage .panel').forEach(p=>p.classList.remove('on'));
   document.getElementById('t-'+panel).classList.add('on');
-  if(!isMob){document.querySelectorAll('#tchSB .sb-item').forEach(l=>l.classList.remove('on'));if(el)el.classList.add('on');}
-  else{document.querySelectorAll('#tchMobNav .mn-item').forEach(l=>l.classList.remove('on'));if(el)el.classList.add('on');}
+  document.querySelectorAll('#tchSB .sb-item').forEach(l=>l.classList.remove('on'));if(el)el.classList.add('on');
+  closeSidebar('tch');
 }
 
 /* ══ HELPERS ══ */
@@ -1416,11 +1915,61 @@ function emptyRow(cols,msg){return`<tr><td colspan="${cols}" style="text-align:c
 function fd(d){if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return d;}}
 function toS(){return new Date().toISOString().slice(0,10);}
 function getGrade(pct){return pct>=90?'A+':pct>=80?'A':pct>=70?'B+':pct>=60?'B':pct>=50?'C':pct>=40?'D':'F';}
+
+/* ── Per-student work status (assignments/homework/classwork) ──
+   item.status = { studentId: 'done' | 'incomplete' } — explicit teacher-set states.
+   If no explicit status exists and 5+ days have passed since the reference date
+   (due date for assignments/homework, entry date for classwork), it's treated
+   as auto-completed. Otherwise it's "pending". */
+function resolveWorkStatus(item, studentId, refDateField){
+  const explicit=item.status&&item.status[studentId];
+  if(explicit==='done')return{key:'done',label:'Done',cls:'bk'};
+  if(explicit==='incomplete')return{key:'incomplete',label:'Incomplete',cls:'bb'};
+  const refDate=new Date(item[refDateField]);
+  const daysSince=(new Date()-refDate)/86400000;
+  if(daysSince>=5)return{key:'auto',label:'Auto-Completed',cls:'bi'};
+  return{key:'pending',label:'Pending',cls:'bw'};
+}
+function setWorkStatus(collection,itemId,studentId,statusVal){
+  const list=collection==='assignments'?ASSIGNMENTS:collection==='homework'?HOMEWORK:CLASSWORK;
+  const item=list.find(x=>x.id===itemId);if(!item)return;
+  if(!item.status)item.status={};
+  item.status[studentId]=statusVal;
+  if(window._firebaseReady)window._set(window._ref(window._db,`${collection}/${itemId}/status/${studentId}`),statusVal).catch(()=>{});
+}
+
+const WORK_PANEL_MAP={assignments:{panel:'asgStatusPanel',title:'asgStatusTitle',list:'asgStatusList',refField:'due'},homework:{panel:'hwStatusPanel',title:'hwStatusTitle',list:'hwStatusList',refField:'due'},classwork:{panel:'cwStatusPanel',title:'cwStatusTitle',list:'cwStatusList',refField:'date'}};
+
+function openWorkStatus(collection,itemId){
+  const cfg=WORK_PANEL_MAP[collection];if(!cfg)return;
+  const list=collection==='assignments'?ASSIGNMENTS:collection==='homework'?HOMEWORK:CLASSWORK;
+  const item=list.find(x=>x.id===itemId);if(!item)return;
+  const classes=collection==='classwork'?[item.class]:item.classes;
+  const students=[];classes.forEach(cls=>{Object.entries(STUDENTS).filter(([,s])=>s.class===cls).forEach(([k,s])=>students.push([k,s]));});
+  const label=collection==='classwork'?item.topic:item.title;
+  document.getElementById(cfg.title).textContent='Status — '+(item.subject?item.subject+': ':'')+label;
+  document.getElementById(cfg.list).innerHTML=students.length?students.map(([k,s])=>{
+    const st=resolveWorkStatus(item,k,cfg.refField);
+    const explicit=item.status&&item.status[k];
+    return `<div class="ar"><div class="ar-info"><div class="ar-name">${s.name}</div><div class="ar-roll">${s.roll} · ${s.class}</div></div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span class="bd ${st.cls}" id="wsBadge_${collection}_${k}">${st.label}</span><select class="tdi" style="width:auto;text-align:left" onchange="setWorkStatus('${collection}','${itemId}','${k}',this.value);refreshWorkBadge('${collection}','${itemId}','${k}','${cfg.refField}')"><option value="" ${!explicit?'selected':''}>Auto (by date)</option><option value="done" ${explicit==='done'?'selected':''}>Done</option><option value="incomplete" ${explicit==='incomplete'?'selected':''}>Incomplete</option></select></div></div>`;
+  }).join(''):'<p style="color:var(--dim);font-family:var(--fm);font-size:11px;padding:10px 0">No students found for this class.</p>';
+  document.getElementById(cfg.panel).style.display='block';
+  document.getElementById(cfg.panel).scrollIntoView({behavior:'smooth',block:'start'});
+}
+function refreshWorkBadge(collection,itemId,studentId,refField){
+  const list=collection==='assignments'?ASSIGNMENTS:collection==='homework'?HOMEWORK:CLASSWORK;
+  const item=list.find(x=>x.id===itemId);if(!item)return;
+  const st=resolveWorkStatus(item,studentId,refField);
+  const badge=document.getElementById(`wsBadge_${collection}_${studentId}`);
+  if(badge){badge.className='bd '+st.cls;badge.textContent=st.label;}
+  if(collection==='assignments')renderRiskAlert();
+}
 function clearChips(id){document.querySelectorAll('#'+id+' .chip').forEach(c=>c.classList.remove('on'));}
 let toastT;
 function showToast(msg,type){const t=document.getElementById('toast');t.textContent=msg;t.className='toast '+(type||'i')+' on';clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('on'),3500);}
 document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',function(e){if(e.target===this)closeModal(this.id);}));
-document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.ov.on').forEach(o=>closeModal(o.id));});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.ov.on').forEach(o=>closeModal(o.id));closeSidebar('stu');closeSidebar('tch');}});
+window.addEventListener('resize',()=>{if(window.innerWidth>1180){closeSidebar('stu');closeSidebar('tch');}});
 
 // Init
 setRole('student');
